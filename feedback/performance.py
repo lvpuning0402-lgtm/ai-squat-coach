@@ -897,7 +897,11 @@ class SessionPerformanceAnalyzer:
                 "average_detail_score": 0.0,
                 "detail_watch_reps": 0,
                 "detail_watch_rate": 0.0,
+                "detail_watch_events": 0,
+                "detail_review_events": 0,
+                "detail_clear_reps": 0,
                 "top_detail_warning": "NONE",
+                "top_detail_warnings": [],
                 "standard_passes": 0,
                 "standard_pass_rate": 0.0,
                 "side_reps": 0,
@@ -933,7 +937,11 @@ class SessionPerformanceAnalyzer:
                 "average_detail_score": 0.0,
                 "detail_watch_reps": 0,
                 "detail_watch_rate": 0.0,
+                "detail_watch_events": 0,
+                "detail_review_events": 0,
+                "detail_clear_reps": 0,
                 "top_detail_warning": "NONE",
+                "top_detail_warnings": [],
                 "standard_passes": 0,
                 "standard_pass_rate": 0.0,
                 "side_reps": 0,
@@ -1057,6 +1065,88 @@ class SessionPerformanceAnalyzer:
             )[0][0]
             if detail_warning_counter
             else "NONE"
+        )
+
+        detail_state_counter = Counter()
+        detail_warning_breakdown = {}
+
+        for rep in valid_reps:
+            checks = rep.get(
+                "detail_checks",
+                {}
+            )
+
+            for warning in rep.get(
+                "detail_warnings",
+                []
+            ):
+                state = checks.get(
+                    warning,
+                    {}
+                ).get(
+                    "state",
+                    "WATCH"
+                )
+
+                if state not in (
+                    "WATCH",
+                    "REVIEW"
+                ):
+                    state = "WATCH"
+
+                detail_state_counter[
+                    state
+                ] += 1
+
+                if warning not in detail_warning_breakdown:
+                    detail_warning_breakdown[
+                        warning
+                    ] = {
+                        "watch": 0,
+                        "review": 0,
+                        "total": 0
+                    }
+
+                detail_warning_breakdown[
+                    warning
+                ][
+                    state.lower()
+                ] += 1
+                detail_warning_breakdown[
+                    warning
+                ][
+                    "total"
+                ] += 1
+
+        top_detail_warnings = sorted(
+            (
+                {
+                    "name": name,
+                    **counts
+                }
+                for name, counts
+                in detail_warning_breakdown.items()
+            ),
+            key=lambda item: (
+                -item[
+                    "review"
+                ],
+                -item[
+                    "total"
+                ],
+                item[
+                    "name"
+                ]
+            )
+        )[:3]
+
+        detail_clear_reps = sum(
+            1
+            for rep in valid_reps
+            if not rep.get(
+                "detail_warnings",
+                []
+            )
         )
 
         standard_passes = sum(
@@ -1257,7 +1347,15 @@ class SessionPerformanceAnalyzer:
                 detail_watch_rate,
                 1
             ),
+            "detail_watch_events": detail_state_counter[
+                "WATCH"
+            ],
+            "detail_review_events": detail_state_counter[
+                "REVIEW"
+            ],
+            "detail_clear_reps": detail_clear_reps,
             "top_detail_warning": top_detail_warning,
+            "top_detail_warnings": top_detail_warnings,
             "standard_passes": standard_passes,
             "standard_pass_rate": round(
                 standard_pass_rate,
