@@ -31,6 +31,13 @@ class FrontFeedback:
         self.right_knee_state = "OK"
         self.symmetry_state = "OK"
 
+        # 单次动作峰值，用于完整 Rep 质量分析。
+        self.current_rep_active = False
+        self.current_max_left_inward = 0.0
+        self.current_max_right_inward = 0.0
+        self.current_max_symmetry = 0.0
+        self.last_rep_metrics = None
+
     @staticmethod
     def average(buffer):
         if not buffer:
@@ -174,6 +181,27 @@ class FrontFeedback:
 
         return self.symmetry_state
 
+    def reset_rep_metrics(self):
+        self.current_rep_active = False
+        self.current_max_left_inward = 0.0
+        self.current_max_right_inward = 0.0
+        self.current_max_symmetry = 0.0
+
+    def finalize_rep_metrics(self):
+        self.last_rep_metrics = {
+            "max_left_inward": self.current_max_left_inward,
+            "max_right_inward": self.current_max_right_inward,
+            "max_symmetry_value": self.current_max_symmetry
+        }
+
+        result = dict(
+            self.last_rep_metrics
+        )
+
+        self.reset_rep_metrics()
+
+        return result
+
     def update(
         self,
         left_hip,
@@ -182,7 +210,8 @@ class FrontFeedback:
         right_knee,
         left_ankle,
         right_ankle,
-        stage
+        stage,
+        rep_completed=False
     ):
         (
             left_valgus,
@@ -224,27 +253,46 @@ class FrontFeedback:
             "down"
         }
 
-        if stage not in active_phases:
-            return {
-                "left_state": "READY",
-                "right_state": "READY",
-                "symmetry_state": "READY",
-                "left_value": smooth_left,
-                "right_value": smooth_right,
-                "symmetry_value": smooth_symmetry
-            }
+        rep_metrics = None
 
-        left_state = self.update_knee_state(
-            smooth_left,
-            "LEFT"
-        )
-        right_state = self.update_knee_state(
-            smooth_right,
-            "RIGHT"
-        )
-        symmetry_state = self.update_symmetry_state(
-            smooth_symmetry
-        )
+        if stage in active_phases:
+            self.current_rep_active = True
+
+            self.current_max_left_inward = max(
+                self.current_max_left_inward,
+                smooth_left
+            )
+            self.current_max_right_inward = max(
+                self.current_max_right_inward,
+                smooth_right
+            )
+            self.current_max_symmetry = max(
+                self.current_max_symmetry,
+                smooth_symmetry
+            )
+
+            left_state = self.update_knee_state(
+                smooth_left,
+                "LEFT"
+            )
+            right_state = self.update_knee_state(
+                smooth_right,
+                "RIGHT"
+            )
+            symmetry_state = self.update_symmetry_state(
+                smooth_symmetry
+            )
+
+        else:
+            left_state = "READY"
+            right_state = "READY"
+            symmetry_state = "READY"
+
+            if (
+                rep_completed
+                and self.current_rep_active
+            ):
+                rep_metrics = self.finalize_rep_metrics()
 
         return {
             "left_state": left_state,
@@ -252,7 +300,8 @@ class FrontFeedback:
             "symmetry_state": symmetry_state,
             "left_value": smooth_left,
             "right_value": smooth_right,
-            "symmetry_value": smooth_symmetry
+            "symmetry_value": smooth_symmetry,
+            "rep_metrics": rep_metrics
         }
 
     def reset(self):
@@ -271,3 +320,6 @@ class FrontFeedback:
         self.left_knee_state = "OK"
         self.right_knee_state = "OK"
         self.symmetry_state = "OK"
+
+        self.last_rep_metrics = None
+        self.reset_rep_metrics()
