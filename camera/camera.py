@@ -123,7 +123,7 @@ def draw_transparent_panel(
     y,
     width,
     height,
-    alpha=0.62
+    alpha=0.56
 ):
     overlay = frame.copy()
 
@@ -178,7 +178,7 @@ def draw_text(
     text,
     x,
     y,
-    scale=0.50,
+    scale=0.47,
     thickness=1
 ):
     cv2.putText(
@@ -207,8 +207,8 @@ def draw_panel(
     x,
     y,
     width,
-    line_height=25,
-    title_height=31
+    line_height=23,
+    title_height=29
 ):
     panel_height = (
         title_height
@@ -321,7 +321,7 @@ def draw_interface(
         ] + simple_lines
 
         simple_width = min(
-            300,
+            280,
             width - margin * 2
         )
 
@@ -379,7 +379,7 @@ def draw_interface(
         left_x,
         top_y,
         column_width,
-        line_height=23
+        line_height=21
     )
 
     form_height = draw_panel(
@@ -389,7 +389,7 @@ def draw_interface(
         right_x,
         top_y,
         column_width,
-        line_height=23
+        line_height=21
     )
 
     set_lines = []
@@ -471,10 +471,17 @@ def draw_interface(
     # 中央动作主体区域完全留空。
     debug_lines_to_draw = debug_lines[:8]
 
+    debug_width = max(
+        220,
+        int(
+            column_width * 0.82
+        )
+    )
+
     debug_height = (
-        31
-        + 16
-        + 20 * len(debug_lines_to_draw)
+        29
+        + 14
+        + 18 * len(debug_lines_to_draw)
     )
 
     debug_y = (
@@ -500,8 +507,9 @@ def draw_interface(
         debug_lines_to_draw,
         left_x,
         debug_y,
-        column_width,
-        line_height=20
+        debug_width,
+        line_height=18,
+        title_height=29
     )
 
     right_bottom = (
@@ -1147,9 +1155,9 @@ def run_camera():
             draw_text(
                 frame,
                 f"UI: {display_mode}  |  M = switch",
-                14,
-                camera_height - 14,
-                scale=0.42,
+                16,
+                camera_height - 12,
+                scale=0.34,
                 thickness=1
             )
 
