@@ -206,6 +206,18 @@ class CompetitionDetailEvaluatorTests(unittest.TestCase):
                 "E",
             ]
         )
+        self.assertGreaterEqual(
+            result[
+                "detail_coverage"
+            ],
+            0.9
+        )
+        self.assertEqual(
+            result[
+                "detail_confidence"
+            ],
+            "HIGH"
+        )
 
     def test_ipf_proxy_score_is_separate_from_general_coach_score(self):
         evaluator = CompetitionDetailEvaluator()
@@ -364,6 +376,29 @@ class CompetitionDetailEvaluatorTests(unittest.TestCase):
                 "lost_points"
             ],
             0.0
+        )
+        self.assertGreaterEqual(
+            result[
+                "phase_scores"
+            ][
+                "bottom"
+            ][
+                "coverage"
+            ],
+            0.9
+        )
+        self.assertIn(
+            result[
+                "phase_scores"
+            ][
+                "bottom"
+            ][
+                "confidence"
+            ],
+            [
+                "MEDIUM",
+                "HIGH",
+            ]
         )
 
     def test_side_phase_scores_use_depth_trunk_stability_and_ascent_control(self):
@@ -598,6 +633,24 @@ class CompetitionDetailPerformanceIntegrationTests(unittest.TestCase):
             ],
             summary[
                 "phase_deduction_summary"
+            ]
+        )
+        self.assertGreater(
+            summary[
+                "average_detail_coverage"
+            ],
+            0.0
+        )
+        self.assertIn(
+            "descent",
+            summary[
+                "phase_coverage_averages"
+            ]
+        )
+        self.assertIn(
+            "confidence",
+            summary[
+                "weakest_phase"
             ]
         )
 
