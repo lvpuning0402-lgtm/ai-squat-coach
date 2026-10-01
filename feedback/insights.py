@@ -100,6 +100,18 @@ class SessionInsightBuilder:
         "ascent_control": "Ascent control",
     }
 
+    PHASE_TEXT_ZH = {
+        "descent": "下降阶段",
+        "bottom": "最低点阶段",
+        "ascent": "上升阶段",
+    }
+
+    PHASE_UI = {
+        "descent": "Descent",
+        "bottom": "Bottom",
+        "ascent": "Ascent",
+    }
+
     @staticmethod
     def _valid_reps(
         reps
@@ -411,6 +423,17 @@ class SessionInsightBuilder:
             valid_reps
         )
 
+        weakest_phase_data = summary.get(
+            "weakest_phase"
+        ) or {}
+
+        phase_focus = weakest_phase_data.get(
+            "phase"
+        )
+        phase_focus_score = weakest_phase_data.get(
+            "score"
+        )
+
         overview = (
             f"本组完成 {total} 次有效动作，"
             f"{pass_count} 次通过当前标准"
@@ -498,6 +521,20 @@ class SessionInsightBuilder:
             )
         else:
             focus = "当前没有反复出现的主要标准问题或细节提示。"
+
+        if (
+            phase_focus
+            and phase_focus_score is not None
+        ):
+            phase_label = self.PHASE_TEXT_ZH.get(
+                phase_focus,
+                phase_focus
+            )
+
+            focus += (
+                f" 分阶段看，{phase_label}平均分最低"
+                f"（{phase_focus_score:.1f}）。"
+            )
 
         if main_issue != "NONE":
             selected_focus = main_issue
@@ -595,6 +632,21 @@ class SessionInsightBuilder:
                 "Keep the same movement pattern"
             )
 
+        if (
+            phase_focus
+            and phase_focus_score is not None
+        ):
+            ui_lines.append(
+                (
+                    "Weak phase: "
+                    + self.PHASE_UI.get(
+                        phase_focus,
+                        phase_focus
+                    )
+                    + f" {phase_focus_score:.1f}"
+                )
+            )
+
         return {
             "headline": headline,
             "overview": overview,
@@ -611,6 +663,8 @@ class SessionInsightBuilder:
             "detail_focus_rate": detail_focus_rate,
             "detail_focus_severity": detail_focus_severity,
             "selected_focus": selected_focus,
+            "phase_focus": phase_focus,
+            "phase_focus_score": phase_focus_score,
             "standard_pass_rate": pass_rate,
             "metrics": {
                 "valid_reps": total,
