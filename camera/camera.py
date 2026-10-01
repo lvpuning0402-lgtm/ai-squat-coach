@@ -1,3 +1,6 @@
+from datetime import datetime
+from pathlib import Path
+
 import cv2
 
 from pose.detector import PoseDetector
@@ -812,6 +815,22 @@ def run_camera():
 
     display_mode_index = 0
 
+    depth_capture_dir = Path(
+        "reports"
+    ) / "depth_captures"
+    depth_capture_dir.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    previous_side_depth_margin = None
+    depth_capture_pending = None
+    depth_capture_raw_frame = None
+    depth_capture_index = 0
+    last_depth_capture_frame = -1000
+    depth_capture_notice = None
+    depth_capture_notice_frames = 0
+
     session_diagnostics = {
         "frames_total": 0,
         "body_ready_frames": 0,
@@ -1355,6 +1374,84 @@ def run_camera():
                             )
                         )
 
+                        general_depth_min = VISION_TOLERANCE[
+                            "general_depth_margin_min"
+                        ]
+                        ipf_depth_min = VISION_TOLERANCE[
+                            "ipf_depth_margin_min"
+                        ]
+
+                        crossing_labels = []
+
+                        if (
+                            previous_side_depth_margin
+                            is not None
+                            and side_result[
+                                "phase"
+                            ] in (
+                                "DESCENDING",
+                                "BOTTOM"
+                            )
+                        ):
+                            if (
+                                previous_side_depth_margin
+                                < general_depth_min
+                                <= current_depth_margin
+                            ):
+                                crossing_labels.append(
+                                    "GENERAL_PARALLEL"
+                                )
+
+                            if (
+                                previous_side_depth_margin
+                                < ipf_depth_min
+                                <= current_depth_margin
+                            ):
+                                crossing_labels.append(
+                                    "IPF_PROXY"
+                                )
+
+                        if (
+                            crossing_labels
+                            and (
+                                session_diagnostics[
+                                    "frames_total"
+                                ]
+                                - last_depth_capture_frame
+                                >= 12
+                            )
+                        ):
+                            depth_capture_pending = {
+                                "label": "+".join(
+                                    crossing_labels
+                                ),
+                                "margin": float(
+                                    current_depth_margin
+                                ),
+                                "knee_angle": float(
+                                    side_result[
+                                        "knee_angle"
+                                    ]
+                                ),
+                                "hip_angle": float(
+                                    side_result[
+                                        "hip_angle"
+                                    ]
+                                )
+                            }
+                            depth_capture_raw_frame = (
+                                frame.copy()
+                            )
+                            last_depth_capture_frame = (
+                                session_diagnostics[
+                                    "frames_total"
+                                ]
+                            )
+
+                        previous_side_depth_margin = float(
+                            current_depth_margin
+                        )
+
                     if side_result.get(
                         "rep_aborted",
                         False
@@ -1566,6 +1663,82 @@ def run_camera():
                 scale=0.34,
                 thickness=1
             )
+
+            if depth_capture_pending is not None:
+                depth_capture_index += 1
+
+                timestamp = datetime.now().strftime(
+                    "%Y%m%d_%H%M%S_%f"
+                )
+
+                capture_stem = (
+                    f"session_{session_id}_depth_"
+                    f"{depth_capture_index:02d}_"
+                    f"{depth_capture_pending['label']}_"
+                    f"{timestamp}"
+                )
+
+                pose_path = (
+                    depth_capture_dir
+                    / f"{capture_stem}_pose.png"
+                )
+                ui_path = (
+                    depth_capture_dir
+                    / f"{capture_stem}_ui.png"
+                )
+
+                if depth_capture_raw_frame is not None:
+                    cv2.imwrite(
+                        str(
+                            pose_path
+                        ),
+                        depth_capture_raw_frame
+                    )
+
+                cv2.imwrite(
+                    str(
+                        ui_path
+                    ),
+                    frame
+                )
+
+                depth_capture_notice = (
+                    "AUTO CAPTURE "
+                    f"{depth_capture_pending['label']} "
+                    f"margin "
+                    f"{depth_capture_pending['margin']:+.3f}"
+                )
+                depth_capture_notice_frames = 45
+
+                print(
+                    "AUTO DEPTH CAPTURE | "
+                    f"{depth_capture_pending['label']} | "
+                    f"margin "
+                    f"{depth_capture_pending['margin']:+.3f} | "
+                    f"knee "
+                    f"{depth_capture_pending['knee_angle']:.1f} | "
+                    f"hip "
+                    f"{depth_capture_pending['hip_angle']:.1f} | "
+                    f"POSE {pose_path} | "
+                    f"UI {ui_path}"
+                )
+
+                depth_capture_pending = None
+                depth_capture_raw_frame = None
+
+            if (
+                depth_capture_notice
+                and depth_capture_notice_frames > 0
+            ):
+                draw_text(
+                    frame,
+                    depth_capture_notice,
+                    16,
+                    camera_height - 36,
+                    scale=0.43,
+                    thickness=2
+                )
+                depth_capture_notice_frames -= 1
 
             cv2.imshow(
                 window_name,
