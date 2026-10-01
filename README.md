@@ -54,6 +54,13 @@ The coach layer only explains metrics already measured by the pose system. It do
 Session JSON reports include a `coach_feedback` object. Formal history JSON reports include `progress_feedback`.
 
 The movement report now also includes a secondary `MULTI_COMPETITION_DETAIL` layer.
+
+The detail layer now uses weighted continuous scoring rather than equal fixed
+scores. FRONT prioritizes knee tracking and ascent control; SIDE prioritizes
+depth and ascent control. Separate IPF proxy and physique-control scores use
+their own weights. The exact project weights and score bands are documented in
+`STANDARDS.md`.
+
 It keeps the hard squat standard separate from additional coaching detail:
 
 - FRONT: shoulder level, hip level, center balance, head control, left/right knee-angle symmetry and knee-height symmetry;
