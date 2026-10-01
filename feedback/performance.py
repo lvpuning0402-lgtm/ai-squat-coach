@@ -176,7 +176,10 @@ class SessionPerformanceAnalyzer:
             )
             sync = self._safe(
                 rep_data.get(
-                    "max_sync_error"
+                    "max_ascent_sync_error",
+                    rep_data.get(
+                        "max_sync_error"
+                    )
                 ),
                 0.0
             )
@@ -208,7 +211,10 @@ class SessionPerformanceAnalyzer:
             )
             sync = self._safe(
                 rep_data.get(
-                    "max_sync_error"
+                    "max_ascent_sync_error",
+                    rep_data.get(
+                        "max_sync_error"
+                    )
                 ),
                 0.0
             )
@@ -562,10 +568,10 @@ class SessionPerformanceAnalyzer:
                 )
 
             sync_good = VISION_TOLERANCE[
-                "sync_good_max"
+                "ascent_progress_good_max"
             ]
             sync_bad = VISION_TOLERANCE[
-                "sync_bad_min"
+                "ascent_progress_bad_min"
             ]
 
             if sync <= sync_good:
@@ -630,6 +636,7 @@ class SessionPerformanceAnalyzer:
                     sync <= sync_bad
                 )
             }
+            standard_scope = "SIDE_GENERAL_STRENGTH"
 
             component_scores = {
                 "depth": round(
@@ -682,10 +689,10 @@ class SessionPerformanceAnalyzer:
             )
 
             sync_good = VISION_TOLERANCE[
-                "sync_good_max"
+                "ascent_progress_good_max"
             ]
             sync_bad = VISION_TOLERANCE[
-                "sync_bad_min"
+                "ascent_progress_bad_min"
             ]
 
             if sync <= sync_good:
@@ -740,6 +747,7 @@ class SessionPerformanceAnalyzer:
                     sync <= sync_bad
                 )
             }
+            standard_scope = "FRONT_TECHNIQUE_ONLY"
 
             component_scores = {
                 "knee_tracking": round(
@@ -755,6 +763,7 @@ class SessionPerformanceAnalyzer:
         else:
             diagnostic_metrics = {}
             standard_checks = {}
+            standard_scope = "UNKNOWN"
             component_scores = {
                 "general": 0.0
             }
@@ -790,7 +799,12 @@ class SessionPerformanceAnalyzer:
             "issues": issues,
             "tempo_total": total_time,
             "standard_profile": STANDARD_NAME,
+            "standard_scope": standard_scope,
             "standard_checks": standard_checks,
+            "standard_score": round(
+                quality_score,
+                1
+            ),
             "standard_met": (
                 all(
                     standard_checks.values()
