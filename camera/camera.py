@@ -673,7 +673,7 @@ def build_session_summary_frame(
             "TEST protocol: no formal trend"
         )
 
-    draw_panel(
+    result_height = draw_panel(
         frame,
         "RESULT",
         result_lines,
@@ -715,7 +715,7 @@ def build_session_summary_frame(
             "No repeated standard issue"
         )
 
-    draw_panel(
+    coach_height = draw_panel(
         frame,
         "AI COACH",
         coach_lines,
@@ -729,7 +729,7 @@ def build_session_summary_frame(
     )
 
     timeline_reps = reps[
-        -10:
+        -7:
     ]
 
     timeline_lines = [
@@ -756,7 +756,14 @@ def build_session_summary_frame(
             )
         )
 
-    timeline_y = 354
+    timeline_y = (
+        104
+        + max(
+            result_height,
+            coach_height
+        )
+        + 18
+    )
 
     draw_panel(
         frame,
