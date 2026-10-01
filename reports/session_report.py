@@ -254,6 +254,11 @@ class SessionReportExporter:
             "competition_flags",
             "physique_control_score",
             "ipf_proxy_score",
+            "phase_descent_score",
+            "phase_bottom_score",
+            "phase_ascent_score",
+            "weakest_phase",
+            "weakest_phase_score",
             "descent_time",
             "bottom_time",
             "ascent_time",
@@ -389,6 +394,57 @@ class SessionReportExporter:
                         ).get(
                             "ipf_squat_proxy",
                             {}
+                        ).get(
+                            "score"
+                        )
+                    ),
+                    "phase_descent_score": self._safe_number(
+                        rep.get(
+                            "phase_scores",
+                            {}
+                        ).get(
+                            "descent",
+                            {}
+                        ).get(
+                            "score"
+                        )
+                    ),
+                    "phase_bottom_score": self._safe_number(
+                        rep.get(
+                            "phase_scores",
+                            {}
+                        ).get(
+                            "bottom",
+                            {}
+                        ).get(
+                            "score"
+                        )
+                    ),
+                    "phase_ascent_score": self._safe_number(
+                        rep.get(
+                            "phase_scores",
+                            {}
+                        ).get(
+                            "ascent",
+                            {}
+                        ).get(
+                            "score"
+                        )
+                    ),
+                    "weakest_phase": (
+                        rep.get(
+                            "weakest_phase",
+                            {}
+                        ) or {}
+                    ).get(
+                        "phase"
+                    ),
+                    "weakest_phase_score": self._safe_number(
+                        (
+                            rep.get(
+                                "weakest_phase",
+                                {}
+                            ) or {}
                         ).get(
                             "score"
                         )
