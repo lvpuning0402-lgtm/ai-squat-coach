@@ -1696,9 +1696,35 @@ def run_camera():
                                 or {}
                             )
 
+                            feedback_phase_metrics = (
+                                front_rep_metrics.pop(
+                                    "phase_metrics",
+                                    {}
+                                )
+                            )
+
                             rep_summary.update(
                                 front_rep_metrics
                             )
+
+                            if feedback_phase_metrics:
+                                merged_phase_metrics = (
+                                    rep_summary.setdefault(
+                                        "phase_metrics",
+                                        {}
+                                    )
+                                )
+
+                                for (
+                                    phase_name,
+                                    phase_values
+                                ) in feedback_phase_metrics.items():
+                                    merged_phase_metrics.setdefault(
+                                        phase_name,
+                                        {}
+                                    ).update(
+                                        phase_values
+                                    )
 
                             rep_summary[
                                 "left_inward"
