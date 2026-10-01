@@ -54,6 +54,42 @@ def metric_state(
     return "WATCH"
 
 
+def side_trunk_state(
+    trunk_lean,
+    rom_degrees
+):
+    if rom_degrees < 45.0:
+        return (
+            "READY",
+            None
+        )
+
+    ratio = (
+        trunk_lean
+        / max(
+            rom_degrees,
+            1.0
+        )
+    )
+
+    if ratio <= 0.40:
+        return (
+            "OK",
+            ratio
+        )
+
+    if ratio <= 0.55:
+        return (
+            "WATCH",
+            ratio
+        )
+
+    return (
+        "TOO MUCH",
+        ratio
+    )
+
+
 def format_time(value):
     if value is None:
         return "--"
@@ -510,7 +546,10 @@ def draw_interface(
     set_lines = []
     if summary["reps"] > 0:
         set_lines = [
-            f"Reps: {summary['reps']}",
+            (
+                f"Reps: {summary['valid_reps']}/"
+                f"{summary['reps']} valid"
+            ),
             f"Average: {summary['average_score']:.1f}",
             f"Best rep: #{summary['best_rep']}",
             f"Trend: {summary['trend']}",
@@ -1193,14 +1232,16 @@ def run_camera():
                             )
                         )
 
-                    trunk_state = metric_state(
+                    (
+                        trunk_state,
+                        trunk_rom_ratio
+                    ) = side_trunk_state(
                         side_result[
                             "trunk_lean"
                         ],
-                        17.0,
-                        20.0,
-                        "OK",
-                        "TOO MUCH"
+                        side_result[
+                            "rom_degrees"
+                        ]
                     )
 
                     head_state = metric_state(
@@ -1304,6 +1345,14 @@ def run_camera():
                         (
                             f"Hip angle: "
                             f"{side_result['hip_angle']:.1f}"
+                        ),
+                        (
+                            "Trunk/ROM: "
+                            + (
+                                f"{trunk_rom_ratio:.2f}"
+                                if trunk_rom_ratio is not None
+                                else "--"
+                            )
                         ),
                         (
                             f"Knee velocity: "
@@ -1455,9 +1504,15 @@ def run_camera():
         valid_reps = [
             rep
             for rep in performance.reps
-            if rep.get(
-                "analysis_valid",
-                True
+            if (
+                rep.get(
+                    "analysis_valid",
+                    True
+                )
+                and rep.get(
+                    "set_valid",
+                    True
+                )
             )
         ]
 
