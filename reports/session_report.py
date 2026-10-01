@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from statistics import mean
 
+from feedback.insights import SessionInsightBuilder
+
 
 class SessionReportExporter:
     """
@@ -169,6 +171,12 @@ class SessionReportExporter:
             )
         )
 
+        coach_feedback = SessionInsightBuilder().build(
+            reps,
+            summary,
+            session_type=session_type
+        )
+
         return {
             "report_version": 1,
             "session_id": session_id,
@@ -179,6 +187,7 @@ class SessionReportExporter:
             ),
             "summary": summary,
             "summary_note": summary_note,
+            "coach_feedback": coach_feedback,
             "view_summary": view_summary,
             "issue_counts": dict(
                 issue_counter
