@@ -4,6 +4,7 @@ import math
 import time
 
 from pose.angles import calculate_angle
+from standards.squat_standard import DETECTION
 
 
 class SideSquatAnalyzer:
@@ -45,10 +46,20 @@ class SideSquatAnalyzer:
         self.standing_frames = 0
         self.abort_frames = 0
 
-        self.start_angle = 155.0
-        self.bottom_angle = 120.0
-        self.standing_angle = 155.0
-        self.standing_like_angle = 165.0
+        # State-machine thresholds only. These detect motion phases;
+        # they are not used as exercise-quality standards.
+        self.start_angle = DETECTION[
+            "side_start_knee_angle"
+        ]
+        self.bottom_angle = DETECTION[
+            "side_bottom_knee_angle"
+        ]
+        self.standing_angle = DETECTION[
+            "side_standing_knee_angle"
+        ]
+        self.standing_like_angle = DETECTION[
+            "side_standing_like_angle"
+        ]
 
         self.baseline_shoulder_y = None
         self.baseline_hip_y = None
@@ -71,6 +82,8 @@ class SideSquatAnalyzer:
         self.current_max_trunk_lean = 0.0
         self.current_max_head_forward = 0.0
         self.current_max_sync_error = 0.0
+        self.current_max_depth_margin = -10.0
+        self.current_max_depth_margin = -10.0
 
         self.last_rep = None
 
@@ -244,7 +257,12 @@ class SideSquatAnalyzer:
             "min_hip_angle": self.current_min_hip_angle,
             "max_trunk_lean": self.current_max_trunk_lean,
             "max_head_forward": self.current_max_head_forward,
-            "max_sync_error": self.current_max_sync_error
+            "max_sync_error": self.current_max_sync_error,
+            "max_depth_margin": self.current_max_depth_margin,
+            "depth_standard_met": (
+                self.current_max_depth_margin
+                >= 0.0
+            )
         }
 
         result = self.last_rep
@@ -305,6 +323,24 @@ class SideSquatAnalyzer:
             ),
             0.01
         )
+
+        thigh_length = max(
+            math.dist(
+                hip,
+                knee
+            ),
+            0.01
+        )
+
+        # Standardized side-view depth proxy:
+        # 0.0 means hip and knee landmarks are level.
+        # Positive means the hip landmark is lower than the knee landmark.
+        # This is a camera landmark proxy for parallel-or-below depth,
+        # not an official IPF referee decision.
+        depth_margin = (
+            hip[1]
+            - knee[1]
+        ) / thigh_length
 
         head_forward = abs(
             nose[0]
@@ -631,15 +667,22 @@ class SideSquatAnalyzer:
                 self.current_max_sync_error,
                 smooth_sync
             )
+            self.current_max_depth_margin = max(
+                self.current_max_depth_margin,
+                depth_margin
+            )
 
-        if smooth_knee > 150:
+        current_depth_margin = max(
+            self.current_max_depth_margin,
+            depth_margin
+        )
+
+        if self.phase == "STANDING":
             depth = "READY"
-        elif smooth_knee > 120:
-            depth = "GO DEEPER"
-        elif smooth_knee >= 85:
-            depth = "GOOD DEPTH"
+        elif current_depth_margin >= 0.0:
+            depth = "STANDARD DEPTH"
         else:
-            depth = "VERY DEEP"
+            depth = "ABOVE PARALLEL"
 
         phase_elapsed = 0.0
 
@@ -666,6 +709,11 @@ class SideSquatAnalyzer:
             "shoulder_descent": shoulder_descent,
             "hip_descent": hip_descent,
             "body_scale_ratio": scale_ratio,
+            "depth_margin": depth_margin,
+            "depth_standard_met": (
+                current_depth_margin
+                >= 0.0
+            ),
             "rom_degrees": max(
                 0.0,
                 180.0
