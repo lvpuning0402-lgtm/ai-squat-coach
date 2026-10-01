@@ -398,7 +398,8 @@ def draw_interface(
             f"Reps: {summary['reps']}",
             f"Average: {summary['average_score']:.1f}",
             f"Best rep: #{summary['best_rep']}",
-            f"Trend: {summary['trend']}"
+            f"Trend: {summary['trend']}",
+            f"Main issue: {summary['top_issue']}"
         ]
 
     last_lines = []
@@ -748,7 +749,8 @@ def run_camera():
                             right_knee["point"],
                             left_ankle["point"],
                             right_ankle["point"],
-                            front_result["phase"]
+                            front_result["phase"],
+                            front_result["rep_completed"]
                         )
 
                         if (
@@ -757,6 +759,17 @@ def run_camera():
                         ):
                             rep_summary = dict(
                                 front_result["rep_summary"]
+                            )
+
+                            front_rep_metrics = (
+                                front_form.get(
+                                    "rep_metrics"
+                                )
+                                or {}
+                            )
+
+                            rep_summary.update(
+                                front_rep_metrics
                             )
 
                             rep_summary[
@@ -1223,7 +1236,8 @@ def run_camera():
             "SESSION SUMMARY | "
             f"Reps {summary['reps']} | "
             f"Average {summary['average_score']:.1f} | "
-            f"Trend {summary['trend']}"
+            f"Trend {summary['trend']} | "
+            f"Issue {summary['top_issue']}"
         )
 
         cap.release()
