@@ -6,6 +6,8 @@ from standards.competition_profiles import (
     DETAIL_PROFILE_VERSION,
     DETAIL_TOLERANCE,
     DETAIL_WEIGHTS,
+    PHASE_DETAIL_WEIGHTS,
+    PHASE_TOLERANCE,
 )
 from standards.squat_standard import VISION_TOLERANCE
 
@@ -454,6 +456,634 @@ class CompetitionDetailEvaluator:
             components
         )
 
+    @staticmethod
+    def _phase_warnings(
+        checks
+    ):
+        return [
+            key
+            for key, item
+            in checks.items()
+            if item.get(
+                "state"
+            ) in (
+                "WATCH",
+                "REVIEW",
+            )
+        ]
+
+    def _front_phase_scores(
+        self,
+        rep
+    ):
+        phase_metrics = rep.get(
+            "phase_metrics",
+            {}
+        )
+
+        results = {}
+
+        knee_good = VISION_TOLERANCE[
+            "knee_in_good_max"
+        ]
+        knee_review = VISION_TOLERANCE[
+            "knee_in_bad_min"
+        ]
+        sync_good = VISION_TOLERANCE[
+            "ascent_progress_good_max"
+        ]
+        sync_review = VISION_TOLERANCE[
+            "ascent_progress_bad_min"
+        ]
+
+        for phase in (
+            "descent",
+            "bottom",
+            "ascent",
+        ):
+            metrics = phase_metrics.get(
+                phase,
+                {}
+            )
+
+            if metrics.get(
+                "samples",
+                0
+            ) <= 0:
+                continue
+
+            left_inward = self._safe(
+                metrics.get(
+                    "max_left_inward"
+                )
+            )
+            right_inward = self._safe(
+                metrics.get(
+                    "max_right_inward"
+                )
+            )
+
+            inward_values = [
+                value
+                for value in (
+                    left_inward,
+                    right_inward
+                )
+                if value is not None
+            ]
+
+            max_inward = (
+                max(
+                    inward_values
+                )
+                if inward_values
+                else None
+            )
+
+            head = self._safe(
+                metrics.get(
+                    "max_head_shift"
+                )
+            )
+            shoulder = self._safe(
+                metrics.get(
+                    "max_shoulder_tilt"
+                )
+            )
+            hip_tilt = self._safe(
+                metrics.get(
+                    "max_hip_tilt"
+                )
+            )
+            center = self._safe(
+                metrics.get(
+                    "max_center_shift"
+                )
+            )
+            knee_asymmetry = self._safe(
+                metrics.get(
+                    "max_knee_angle_asymmetry"
+                )
+            )
+            knee_height_symmetry = self._safe(
+                metrics.get(
+                    "max_symmetry_value"
+                )
+            )
+            ascent_sync = self._safe(
+                metrics.get(
+                    "max_ascent_sync_error"
+                )
+            )
+
+            checks = {
+                "knee_tracking": self._item(
+                    self._lower_state(
+                        max_inward,
+                        knee_good,
+                        knee_review
+                    ),
+                    self._lower_score(
+                        max_inward,
+                        knee_good,
+                        knee_review
+                    ),
+                    max_inward,
+                    "hip_width_ratio",
+                    "GENERAL_STRENGTH",
+                    "Phase-specific knee tracking."
+                ),
+                "shoulder_level": self._item(
+                    self._lower_state(
+                        shoulder,
+                        DETAIL_TOLERANCE[
+                            "shoulder_tilt_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "shoulder_tilt_review_min"
+                        ]
+                    ),
+                    self._lower_score(
+                        shoulder,
+                        DETAIL_TOLERANCE[
+                            "shoulder_tilt_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "shoulder_tilt_review_min"
+                        ]
+                    ),
+                    shoulder,
+                    "shoulder_width_ratio",
+                    "PHYSIQUE_CONTROL_LENS",
+                    "Phase-specific shoulder level."
+                ),
+                "hip_level": self._item(
+                    self._lower_state(
+                        hip_tilt,
+                        DETAIL_TOLERANCE[
+                            "hip_tilt_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "hip_tilt_review_min"
+                        ]
+                    ),
+                    self._lower_score(
+                        hip_tilt,
+                        DETAIL_TOLERANCE[
+                            "hip_tilt_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "hip_tilt_review_min"
+                        ]
+                    ),
+                    hip_tilt,
+                    "hip_width_ratio",
+                    "PHYSIQUE_CONTROL_LENS",
+                    "Phase-specific pelvis level."
+                ),
+                "center_balance": self._item(
+                    self._lower_state(
+                        center,
+                        DETAIL_TOLERANCE[
+                            "center_shift_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "center_shift_review_min"
+                        ]
+                    ),
+                    self._lower_score(
+                        center,
+                        DETAIL_TOLERANCE[
+                            "center_shift_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "center_shift_review_min"
+                        ]
+                    ),
+                    center,
+                    "shoulder_width_ratio",
+                    "PHYSIQUE_CONTROL_LENS",
+                    "Phase-specific lateral balance."
+                ),
+                "head_control": self._item(
+                    self._lower_state(
+                        head,
+                        DETAIL_TOLERANCE[
+                            "head_shift_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "head_shift_review_min"
+                        ]
+                    ),
+                    self._lower_score(
+                        head,
+                        DETAIL_TOLERANCE[
+                            "head_shift_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "head_shift_review_min"
+                        ]
+                    ),
+                    head,
+                    "shoulder_width_ratio",
+                    "PHYSIQUE_CONTROL_LENS",
+                    "Phase-specific head control."
+                ),
+                "knee_angle_symmetry": self._item(
+                    self._lower_state(
+                        knee_asymmetry,
+                        DETAIL_TOLERANCE[
+                            "knee_angle_asym_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "knee_angle_asym_review_min"
+                        ]
+                    ),
+                    self._lower_score(
+                        knee_asymmetry,
+                        DETAIL_TOLERANCE[
+                            "knee_angle_asym_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "knee_angle_asym_review_min"
+                        ]
+                    ),
+                    knee_asymmetry,
+                    "deg",
+                    "PHYSIQUE_CONTROL_LENS",
+                    "Phase-specific left/right knee-angle symmetry."
+                ),
+                "knee_height_symmetry": self._item(
+                    self._lower_state(
+                        knee_height_symmetry,
+                        DETAIL_TOLERANCE[
+                            "front_symmetry_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "front_symmetry_review_min"
+                        ]
+                    ),
+                    self._lower_score(
+                        knee_height_symmetry,
+                        DETAIL_TOLERANCE[
+                            "front_symmetry_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "front_symmetry_review_min"
+                        ]
+                    ),
+                    knee_height_symmetry,
+                    "hip_width_ratio",
+                    "PHYSIQUE_CONTROL_LENS",
+                    "Phase-specific knee-height symmetry."
+                ),
+            }
+
+            if phase == "ascent":
+                checks[
+                    "ascent_control"
+                ] = self._item(
+                    self._lower_state(
+                        ascent_sync,
+                        sync_good,
+                        sync_review
+                    ),
+                    self._lower_score(
+                        ascent_sync,
+                        sync_good,
+                        sync_review
+                    ),
+                    ascent_sync,
+                    "progress_delta",
+                    "GENERAL_STRENGTH",
+                    "Phase-specific shoulder/hip ascent coordination."
+                )
+
+            score, components = self._weighted_score(
+                checks,
+                PHASE_DETAIL_WEIGHTS[
+                    "FRONT"
+                ][
+                    phase
+                ]
+            )
+
+            results[
+                phase
+            ] = {
+                "score": score,
+                "grade": self._detail_grade(
+                    score
+                ),
+                "label": self._detail_label(
+                    score
+                ),
+                "checks": checks,
+                "weighted_components": components,
+                "warnings": self._phase_warnings(
+                    checks
+                ),
+                "samples": metrics.get(
+                    "samples",
+                    0
+                ),
+            }
+
+        return results
+
+    def _side_phase_scores(
+        self,
+        rep
+    ):
+        phase_metrics = rep.get(
+            "phase_metrics",
+            {}
+        )
+
+        results = {}
+
+        sync_good = VISION_TOLERANCE[
+            "ascent_progress_good_max"
+        ]
+        sync_review = VISION_TOLERANCE[
+            "ascent_progress_bad_min"
+        ]
+        head_good = DETAIL_TOLERANCE[
+            "side_head_forward_good_max"
+        ]
+        head_review = DETAIL_TOLERANCE[
+            "side_head_forward_review_min"
+        ]
+        lockout_good = DETAIL_TOLERANCE[
+            "side_lockout_good_min"
+        ]
+        lockout_review = DETAIL_TOLERANCE[
+            "side_lockout_review_below"
+        ]
+
+        for phase in (
+            "descent",
+            "bottom",
+            "ascent",
+        ):
+            metrics = phase_metrics.get(
+                phase,
+                {}
+            )
+
+            if metrics.get(
+                "samples",
+                0
+            ) <= 0:
+                continue
+
+            head = self._safe(
+                metrics.get(
+                    "max_head_forward"
+                )
+            )
+            min_trunk = self._safe(
+                metrics.get(
+                    "min_trunk_lean"
+                )
+            )
+            max_trunk = self._safe(
+                metrics.get(
+                    "max_trunk_lean"
+                )
+            )
+
+            trunk_range = (
+                max(
+                    0.0,
+                    max_trunk
+                    - min_trunk
+                )
+                if (
+                    min_trunk is not None
+                    and max_trunk is not None
+                )
+                else None
+            )
+
+            checks = {
+                "head_control": self._item(
+                    self._lower_state(
+                        head,
+                        head_good,
+                        head_review
+                    ),
+                    self._lower_score(
+                        head,
+                        head_good,
+                        head_review
+                    ),
+                    head,
+                    "torso_length_ratio",
+                    "PHYSIQUE_CONTROL_LENS",
+                    "Phase-specific head/posture control."
+                ),
+                "trunk_stability": self._item(
+                    self._lower_state(
+                        trunk_range,
+                        PHASE_TOLERANCE[
+                            "trunk_range_good_max"
+                        ],
+                        PHASE_TOLERANCE[
+                            "trunk_range_review_min"
+                        ]
+                    ),
+                    self._lower_score(
+                        trunk_range,
+                        PHASE_TOLERANCE[
+                            "trunk_range_good_max"
+                        ],
+                        PHASE_TOLERANCE[
+                            "trunk_range_review_min"
+                        ]
+                    ),
+                    trunk_range,
+                    "deg_range",
+                    "ANGLE_STABILITY_HEURISTIC",
+                    (
+                        "Change in trunk lean within this phase; "
+                        "not an absolute torso-angle rule."
+                    )
+                ),
+            }
+
+            if phase == "bottom":
+                depth_margin = self._safe(
+                    metrics.get(
+                        "max_depth_margin"
+                    )
+                )
+
+                depth_ok = (
+                    depth_margin is not None
+                    and depth_margin
+                    >= VISION_TOLERANCE[
+                        "general_depth_margin_min"
+                    ]
+                )
+
+                checks[
+                    "general_depth"
+                ] = self._item(
+                    self._boolean_state(
+                        depth_ok
+                    ),
+                    self._boolean_score(
+                        depth_ok
+                    ),
+                    depth_margin,
+                    "thigh_length_ratio",
+                    "GENERAL_STRENGTH",
+                    "Depth reached in the bottom phase."
+                )
+
+            if phase == "ascent":
+                ascent_sync = self._safe(
+                    metrics.get(
+                        "max_ascent_sync_error"
+                    )
+                )
+                lockout = self._safe(
+                    metrics.get(
+                        "max_knee_angle"
+                    )
+                )
+
+                checks[
+                    "ascent_control"
+                ] = self._item(
+                    self._lower_state(
+                        ascent_sync,
+                        sync_good,
+                        sync_review
+                    ),
+                    self._lower_score(
+                        ascent_sync,
+                        sync_good,
+                        sync_review
+                    ),
+                    ascent_sync,
+                    "progress_delta",
+                    "GENERAL_STRENGTH",
+                    "Phase-specific shoulder/hip ascent coordination."
+                )
+                checks[
+                    "lockout_proxy"
+                ] = self._item(
+                    self._higher_state(
+                        lockout,
+                        lockout_good,
+                        lockout_review
+                    ),
+                    self._higher_score(
+                        lockout,
+                        lockout_good,
+                        lockout_review
+                    ),
+                    lockout,
+                    "deg",
+                    "IPF_SQUAT_PROXY",
+                    "Return-to-upright knee-extension proxy."
+                )
+
+            score, components = self._weighted_score(
+                checks,
+                PHASE_DETAIL_WEIGHTS[
+                    "SIDE"
+                ][
+                    phase
+                ]
+            )
+
+            results[
+                phase
+            ] = {
+                "score": score,
+                "grade": self._detail_grade(
+                    score
+                ),
+                "label": self._detail_label(
+                    score
+                ),
+                "checks": checks,
+                "weighted_components": components,
+                "warnings": self._phase_warnings(
+                    checks
+                ),
+                "samples": metrics.get(
+                    "samples",
+                    0
+                ),
+                "angle_snapshot": {
+                    "min_knee_angle_deg": self._safe(
+                        metrics.get(
+                            "min_knee_angle"
+                        )
+                    ),
+                    "min_hip_angle_deg": self._safe(
+                        metrics.get(
+                            "min_hip_angle"
+                        )
+                    ),
+                    "trunk_range_deg": (
+                        round(
+                            trunk_range,
+                            1
+                        )
+                        if trunk_range is not None
+                        else None
+                    ),
+                    "max_shin_angle_deg": self._safe(
+                        metrics.get(
+                            "max_shin_angle"
+                        )
+                    ),
+                },
+            }
+
+        return results
+
+    @staticmethod
+    def _weakest_phase(
+        phase_scores
+    ):
+        available = [
+            (
+                phase,
+                data.get(
+                    "score"
+                )
+            )
+            for phase, data
+            in phase_scores.items()
+            if data.get(
+                "score"
+            ) is not None
+        ]
+
+        if not available:
+            return None
+
+        phase, score = min(
+            available,
+            key=lambda item: item[
+                1
+            ]
+        )
+
+        return {
+            "phase": phase,
+            "score": round(
+                score,
+                1
+            ),
+        }
+
     def _front(
         self,
         rep
@@ -733,6 +1363,10 @@ class CompetitionDetailEvaluator:
             )
         )
 
+        phase_scores = self._front_phase_scores(
+            rep
+        )
+
         return {
             "checks": checks,
             "detail_score": detail_score,
@@ -743,6 +1377,10 @@ class CompetitionDetailEvaluator:
                 detail_score
             ),
             "weighted_components": weighted_components,
+            "phase_scores": phase_scores,
+            "weakest_phase": self._weakest_phase(
+                phase_scores
+            ),
             "angle_metrics": {
                 "knee_angle_asymmetry_deg": knee_asymmetry,
             },
@@ -992,6 +1630,10 @@ class CompetitionDetailEvaluator:
             )
         )
 
+        phase_scores = self._side_phase_scores(
+            rep
+        )
+
         return {
             "checks": checks,
             "detail_score": detail_score,
@@ -1002,6 +1644,10 @@ class CompetitionDetailEvaluator:
                 detail_score
             ),
             "weighted_components": weighted_components,
+            "phase_scores": phase_scores,
+            "weakest_phase": self._weakest_phase(
+                phase_scores
+            ),
             "angle_metrics": {
                 "min_knee_angle_deg": knee_angle,
                 "min_hip_angle_deg": hip_angle,
@@ -1056,6 +1702,8 @@ class CompetitionDetailEvaluator:
                 "detail_grade": "N/A",
                 "detail_label": "INFO",
                 "weighted_components": {},
+                "phase_scores": {},
+                "weakest_phase": None,
                 "angle_metrics": {},
                 "competition_lenses": {},
             }
