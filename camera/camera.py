@@ -937,6 +937,14 @@ def run_camera():
                             (
                                 f"Velocity: "
                                 f"{front_result['descent_velocity']:.4f}"
+                            ),
+                            (
+                                f"Scale: "
+                                f"{front_result['body_scale_ratio']:.2f}"
+                            ),
+                            (
+                                f"Baseline reset: "
+                                f"{front_result['baseline_reset']}"
                             )
                         ]
 
