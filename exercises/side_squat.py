@@ -93,8 +93,166 @@ class SideSquatAnalyzer:
         self.ascent_start_hip_descent = None
         self.ascent_sync_buffer = deque(maxlen=5)
         self.current_max_depth_margin = -10.0
+        self.phase_metrics = self._new_phase_metrics()
 
         self.last_rep = None
+
+    @staticmethod
+    def _new_phase_metrics():
+        template = {
+            "samples": 0,
+            "min_knee_angle": 180.0,
+            "min_hip_angle": 180.0,
+            "max_knee_angle": 0.0,
+            "min_trunk_lean": 90.0,
+            "max_trunk_lean": 0.0,
+            "min_shin_angle": 90.0,
+            "max_shin_angle": 0.0,
+            "max_head_forward": 0.0,
+            "max_sync_error": 0.0,
+            "max_ascent_sync_error": 0.0,
+            "max_depth_margin": -10.0,
+        }
+
+        return {
+            phase: dict(
+                template
+            )
+            for phase in (
+                "descent",
+                "bottom",
+                "ascent",
+            )
+        }
+
+    @staticmethod
+    def _phase_key(
+        phase
+    ):
+        return {
+            "DESCENDING": "descent",
+            "BOTTOM": "bottom",
+            "ASCENDING": "ascent",
+        }.get(
+            phase
+        )
+
+    def _record_phase_metrics(
+        self,
+        phase,
+        knee_angle,
+        hip_angle,
+        trunk_lean,
+        shin_angle,
+        head_forward,
+        sync_error,
+        ascent_sync_error,
+        depth_margin
+    ):
+        phase_key = self._phase_key(
+            phase
+        )
+
+        if phase_key is None:
+            return
+
+        metrics = self.phase_metrics[
+            phase_key
+        ]
+
+        metrics[
+            "samples"
+        ] += 1
+        metrics[
+            "min_knee_angle"
+        ] = min(
+            metrics[
+                "min_knee_angle"
+            ],
+            knee_angle
+        )
+        metrics[
+            "min_hip_angle"
+        ] = min(
+            metrics[
+                "min_hip_angle"
+            ],
+            hip_angle
+        )
+        metrics[
+            "max_knee_angle"
+        ] = max(
+            metrics[
+                "max_knee_angle"
+            ],
+            knee_angle
+        )
+        metrics[
+            "min_trunk_lean"
+        ] = min(
+            metrics[
+                "min_trunk_lean"
+            ],
+            trunk_lean
+        )
+        metrics[
+            "max_trunk_lean"
+        ] = max(
+            metrics[
+                "max_trunk_lean"
+            ],
+            trunk_lean
+        )
+        metrics[
+            "min_shin_angle"
+        ] = min(
+            metrics[
+                "min_shin_angle"
+            ],
+            shin_angle
+        )
+        metrics[
+            "max_shin_angle"
+        ] = max(
+            metrics[
+                "max_shin_angle"
+            ],
+            shin_angle
+        )
+        metrics[
+            "max_head_forward"
+        ] = max(
+            metrics[
+                "max_head_forward"
+            ],
+            head_forward
+        )
+        metrics[
+            "max_sync_error"
+        ] = max(
+            metrics[
+                "max_sync_error"
+            ],
+            sync_error
+        )
+        metrics[
+            "max_depth_margin"
+        ] = max(
+            metrics[
+                "max_depth_margin"
+            ],
+            depth_margin
+        )
+
+        if ascent_sync_error is not None:
+            metrics[
+                "max_ascent_sync_error"
+            ] = max(
+                metrics[
+                    "max_ascent_sync_error"
+                ],
+                ascent_sync_error
+            )
 
     @staticmethod
     def calculate_trunk_lean(
@@ -189,6 +347,7 @@ class SideSquatAnalyzer:
         self.ascent_start_hip_descent = None
         self.ascent_sync_buffer.clear()
         self.current_max_depth_margin = -10.0
+        self.phase_metrics = self._new_phase_metrics()
 
     def reanchor_baseline(
         self,
@@ -293,7 +452,14 @@ class SideSquatAnalyzer:
                 >= VISION_TOLERANCE[
                     "ipf_depth_margin_min"
                 ]
-            )
+            ),
+            "phase_metrics": {
+                phase: dict(
+                    metrics
+                )
+                for phase, metrics
+                in self.phase_metrics.items()
+            }
         }
 
         result = self.last_rep
@@ -801,6 +967,26 @@ class SideSquatAnalyzer:
             )
             self.current_max_depth_margin = max(
                 self.current_max_depth_margin,
+                depth_margin
+            )
+
+            current_ascent_sync = (
+                median(
+                    self.ascent_sync_buffer
+                )
+                if self.ascent_sync_buffer
+                else None
+            )
+
+            self._record_phase_metrics(
+                self.phase,
+                smooth_knee,
+                smooth_hip,
+                smooth_trunk,
+                smooth_shin_angle,
+                smooth_head,
+                smooth_sync,
+                current_ascent_sync,
                 depth_margin
             )
 
