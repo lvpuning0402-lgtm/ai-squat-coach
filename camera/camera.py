@@ -11,6 +11,7 @@ from exercises.side_squat import SideSquatAnalyzer
 
 from feedback.front_feedback import FrontFeedback
 from feedback.performance import SessionPerformanceAnalyzer
+from feedback.insights import SessionInsightBuilder
 
 from data.database import TrainingDatabase
 from reports.session_report import SessionReportExporter
@@ -460,6 +461,12 @@ def draw_interface(
 
     summary = performance.get_set_summary()
 
+    coach_feedback = SessionInsightBuilder().build(
+        performance.reps,
+        summary,
+        session_type=session_type
+    )
+
     if display_mode == "SIMPLE":
         simple_status = [
             f"Mode: {view}",
@@ -585,6 +592,16 @@ def draw_interface(
             set_lines.append(
                 "Trend/consistency: N/A in TEST"
             )
+
+        set_lines.extend([
+            "Coach: "
+            + coach_feedback[
+                "ui_lines"
+            ][1],
+            coach_feedback[
+                "ui_lines"
+            ][2]
+        ])
 
     last_lines = []
     if last_completed_rep:
@@ -1932,6 +1949,48 @@ def run_camera():
                 f"JSON {report_paths['json']} | "
                 f"CSV {report_paths['csv']}"
             )
+
+            coach_feedback = report_paths[
+                "report"
+            ][
+                "coach_feedback"
+            ]
+
+            print()
+            print(
+                "=== AI COACH ==="
+            )
+            print(
+                coach_feedback[
+                    "headline"
+                ]
+            )
+            print(
+                coach_feedback[
+                    "overview"
+                ]
+            )
+            if coach_feedback.get(
+                "strength"
+            ):
+                print(
+                    "做得好的地方："
+                    + coach_feedback[
+                        "strength"
+                    ]
+                )
+            print(
+                "当前重点："
+                + coach_feedback[
+                    "focus"
+                ]
+            )
+            print(
+                "下一组建议："
+                + coach_feedback[
+                    "next_action"
+                ]
+            )
         except Exception as error:
             print(
                 f"Session report warning: {error}"
@@ -1979,6 +2038,39 @@ def run_camera():
                     "HISTORY REPORT | "
                     f"JSON {history_paths['json']} | "
                     f"CSV {history_paths['csv']}"
+                )
+
+                progress_feedback = history_paths[
+                    "report"
+                ][
+                    "progress_feedback"
+                ]
+
+                print()
+                print(
+                    "=== AI COACH PROGRESS ==="
+                )
+                print(
+                    progress_feedback[
+                        "headline"
+                    ]
+                )
+                print(
+                    progress_feedback[
+                        "summary"
+                    ]
+                )
+                print(
+                    "当前重点："
+                    + progress_feedback[
+                        "focus"
+                    ]
+                )
+                print(
+                    "下一次训练："
+                    + progress_feedback[
+                        "next_action"
+                    ]
                 )
 
             except Exception as error:
