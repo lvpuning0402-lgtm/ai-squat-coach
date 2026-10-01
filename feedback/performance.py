@@ -1,6 +1,11 @@
 from collections import Counter
 from statistics import mean, pstdev
 
+from standards.squat_standard import (
+    STANDARD_NAME,
+    VISION_TOLERANCE,
+)
+
 
 class SessionPerformanceAnalyzer:
     """
@@ -422,14 +427,22 @@ class SessionPerformanceAnalyzer:
             right_inward
         )
 
-        # 当前测试阈值来自实际摄像头校准：
-        # <0.05 稳定，>0.15 明显内扣。
-        if max_inward <= 0.05:
+        good_limit = VISION_TOLERANCE[
+            "knee_in_good_max"
+        ]
+        bad_limit = VISION_TOLERANCE[
+            "knee_in_bad_min"
+        ]
+
+        if max_inward <= good_limit:
             score = 100.0
-        elif max_inward <= 0.15:
+        elif max_inward <= bad_limit:
             progress = (
-                max_inward - 0.05
-            ) / 0.10
+                max_inward - good_limit
+            ) / max(
+                bad_limit - good_limit,
+                0.001
+            )
 
             score = (
                 100.0
@@ -439,8 +452,8 @@ class SessionPerformanceAnalyzer:
             score = self._clamp(
                 85.0
                 - (
-                    max_inward - 0.15
-                ) * 140.0
+                    max_inward - bad_limit
+                ) * 120.0
             )
             issues.append(
                 "KNEE_TRACKING"
@@ -450,9 +463,13 @@ class SessionPerformanceAnalyzer:
 
     def score_front_symmetry(
         self,
-        rep_data,
-        issues
+        rep_data
     ):
+        """
+        Symmetry is a diagnostic metric, not a universal squat pass/fail rule.
+        The score is retained only for internal diagnostics and is excluded
+        from the formal standard score.
+        """
         symmetry = self._safe(
             rep_data.get(
                 "max_symmetry_value",
@@ -464,30 +481,35 @@ class SessionPerformanceAnalyzer:
             0.0
         )
 
-        # 正常不对称约 0.25，明显偏侧约 1.09。
-        if symmetry <= 0.35:
-            score = 100.0
-        elif symmetry <= 0.60:
-            progress = (
-                symmetry - 0.35
-            ) / 0.25
+        good_limit = VISION_TOLERANCE[
+            "symmetry_good_max"
+        ]
+        bad_limit = VISION_TOLERANCE[
+            "symmetry_bad_min"
+        ]
 
-            score = (
+        if symmetry <= good_limit:
+            return 100.0
+
+        if symmetry <= bad_limit:
+            progress = (
+                symmetry - good_limit
+            ) / max(
+                bad_limit - good_limit,
+                0.001
+            )
+
+            return (
                 100.0
                 - 15.0 * progress
             )
-        else:
-            score = self._clamp(
-                85.0
-                - (
-                    symmetry - 0.60
-                ) * 60.0
-            )
-            issues.append(
-                "ASYMMETRY"
-            )
 
-        return score
+        return self._clamp(
+            85.0
+            - (
+                symmetry - bad_limit
+            ) * 80.0
+        )
 
     def analyze_rep(self, rep_data):
         view = rep_data.get(
@@ -524,18 +546,50 @@ class SessionPerformanceAnalyzer:
                 0.0
             )
 
-            if min_knee <= 120:
+            depth_standard_met = bool(
+                rep_data.get(
+                    "depth_standard_met",
+                    False
+                )
+            )
+
+            if depth_standard_met:
                 depth_score = 100.0
             else:
-                depth_score = self._clamp(
-                    100.0
-                    - (
-                        min_knee
-                        - 120.0
-                    ) * 2.0
-                )
+                depth_score = 70.0
                 issues.append(
                     "DEPTH"
+                )
+
+            sync_good = VISION_TOLERANCE[
+                "sync_good_max"
+            ]
+            sync_bad = VISION_TOLERANCE[
+                "sync_bad_min"
+            ]
+
+            if sync <= sync_good:
+                sync_score = 100.0
+            elif sync <= sync_bad:
+                progress = (
+                    sync - sync_good
+                ) / max(
+                    sync_bad - sync_good,
+                    0.001
+                )
+                sync_score = (
+                    100.0
+                    - 15.0 * progress
+                )
+            else:
+                sync_score = self._clamp(
+                    85.0
+                    - (
+                        sync - sync_bad
+                    ) * 80.0
+                )
+                issues.append(
+                    "SYNC"
                 )
 
             rom_degrees = max(
@@ -552,80 +606,37 @@ class SessionPerformanceAnalyzer:
                 )
             )
 
-            # 躯干前倾需要结合下蹲深度判断。
-            # 深蹲越深，自然前倾通常也会增加，不能使用固定 17/20 度
-            # 对所有深度一刀切。
-            if trunk_rom_ratio <= 0.40:
-                trunk_score = 100.0
-            elif trunk_rom_ratio <= 0.55:
-                progress = (
-                    trunk_rom_ratio
-                    - 0.40
-                ) / 0.15
+            # Trunk lean and head position remain diagnostic because
+            # no single universal numeric angle applies to all squat styles,
+            # bar positions, anthropometry and mobility.
+            diagnostic_metrics = {
+                "trunk_lean": round(
+                    trunk,
+                    2
+                ),
+                "head_forward": round(
+                    head,
+                    3
+                ),
+                "trunk_rom_ratio": round(
+                    trunk_rom_ratio,
+                    3
+                )
+            }
 
-                trunk_score = (
-                    100.0
-                    - 15.0 * progress
+            standard_checks = {
+                "depth": depth_standard_met,
+                "ascent_control": (
+                    sync <= sync_bad
                 )
-            else:
-                trunk_score = self._clamp(
-                    85.0
-                    - (
-                        trunk_rom_ratio
-                        - 0.55
-                    ) * 100.0
-                )
-
-                issues.append(
-                    "TRUNK"
-                )
-
-            if head <= 0.35:
-                head_score = 100.0
-            elif head <= 0.55:
-                head_score = 85.0
-            else:
-                head_score = self._clamp(
-                    85.0
-                    - (
-                        head
-                        - 0.55
-                    ) * 100.0
-                )
-                issues.append(
-                    "HEAD"
-                )
-
-            if sync <= 0.20:
-                sync_score = 100.0
-            elif sync <= 0.40:
-                sync_score = 85.0
-            else:
-                sync_score = self._clamp(
-                    85.0
-                    - (
-                        sync
-                        - 0.40
-                    ) * 80.0
-                )
-                issues.append(
-                    "SYNC"
-                )
+            }
 
             component_scores = {
                 "depth": round(
                     depth_score,
                     1
                 ),
-                "trunk": round(
-                    trunk_score,
-                    1
-                ),
-                "head": round(
-                    head_score,
-                    1
-                ),
-                "sync": round(
+                "ascent_control": round(
                     sync_score,
                     1
                 )
@@ -657,70 +668,6 @@ class SessionPerformanceAnalyzer:
                 0.0
             )
 
-            if head <= 0.15:
-                head_score = 100.0
-            elif head <= 0.30:
-                head_score = 85.0
-            else:
-                head_score = self._clamp(
-                    85.0
-                    - (
-                        head
-                        - 0.30
-                    ) * 100.0
-                )
-                issues.append(
-                    "HEAD"
-                )
-
-            if shoulder <= 0.08:
-                shoulder_score = 100.0
-            elif shoulder <= 0.16:
-                shoulder_score = 85.0
-            else:
-                shoulder_score = self._clamp(
-                    85.0
-                    - (
-                        shoulder
-                        - 0.16
-                    ) * 120.0
-                )
-                issues.append(
-                    "SHOULDER"
-                )
-
-            if center <= 0.15:
-                center_score = 100.0
-            elif center <= 0.30:
-                center_score = 85.0
-            else:
-                center_score = self._clamp(
-                    85.0
-                    - (
-                        center
-                        - 0.30
-                    ) * 100.0
-                )
-                issues.append(
-                    "CENTER"
-                )
-
-            if sync <= 0.08:
-                sync_score = 100.0
-            elif sync <= 0.18:
-                sync_score = 85.0
-            else:
-                sync_score = self._clamp(
-                    85.0
-                    - (
-                        sync
-                        - 0.18
-                    ) * 120.0
-                )
-                issues.append(
-                    "SYNC"
-                )
-
             knee_tracking_score = (
                 self.score_front_knee_tracking(
                     rep_data,
@@ -730,39 +677,84 @@ class SessionPerformanceAnalyzer:
 
             symmetry_score = (
                 self.score_front_symmetry(
-                    rep_data,
-                    issues
+                    rep_data
                 )
             )
 
-            component_scores = {
-                "head": round(
-                    head_score,
-                    1
+            sync_good = VISION_TOLERANCE[
+                "sync_good_max"
+            ]
+            sync_bad = VISION_TOLERANCE[
+                "sync_bad_min"
+            ]
+
+            if sync <= sync_good:
+                sync_score = 100.0
+            elif sync <= sync_bad:
+                progress = (
+                    sync - sync_good
+                ) / max(
+                    sync_bad - sync_good,
+                    0.001
+                )
+                sync_score = (
+                    100.0
+                    - 15.0 * progress
+                )
+            else:
+                sync_score = self._clamp(
+                    85.0
+                    - (
+                        sync - sync_bad
+                    ) * 80.0
+                )
+                issues.append(
+                    "SYNC"
+                )
+
+            diagnostic_metrics = {
+                "head_shift": round(
+                    head,
+                    3
                 ),
-                "shoulder": round(
-                    shoulder_score,
-                    1
+                "shoulder_tilt": round(
+                    shoulder,
+                    3
                 ),
-                "center": round(
-                    center_score,
-                    1
+                "center_shift": round(
+                    center,
+                    3
                 ),
-                "sync": round(
-                    sync_score,
-                    1
-                ),
-                "knee_tracking": round(
-                    knee_tracking_score,
-                    1
-                ),
-                "symmetry": round(
+                "symmetry_score": round(
                     symmetry_score,
                     1
                 )
             }
 
+            standard_checks = {
+                "knee_tracking": (
+                    "KNEE_TRACKING"
+                    not in issues
+                ),
+                "ascent_control": (
+                    sync <= sync_bad
+                )
+            }
+
+            component_scores = {
+                "knee_tracking": round(
+                    knee_tracking_score,
+                    1
+                ),
+                "ascent_control": round(
+                    sync_score,
+                    1
+                )
+            }
+
         else:
+            diagnostic_metrics = {}
+            standard_checks = {}
             component_scores = {
                 "general": 0.0
             }
@@ -797,6 +789,16 @@ class SessionPerformanceAnalyzer:
             "component_scores": component_scores,
             "issues": issues,
             "tempo_total": total_time,
+            "standard_profile": STANDARD_NAME,
+            "standard_checks": standard_checks,
+            "standard_met": (
+                all(
+                    standard_checks.values()
+                )
+                if standard_checks
+                else False
+            ),
+            "diagnostic_metrics": diagnostic_metrics,
             "trunk_rom_ratio": (
                 round(
                     trunk_rom_ratio,
