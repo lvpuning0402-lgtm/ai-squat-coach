@@ -11,6 +11,7 @@ from feedback.performance import SessionPerformanceAnalyzer
 
 from data.database import TrainingDatabase
 from reports.session_report import SessionReportExporter
+from reports.history_report import HistoryReportExporter
 
 
 DISPLAY_MODES = [
@@ -688,6 +689,7 @@ def run_camera():
     session_id = database.start_session()
 
     report_exporter = SessionReportExporter()
+    history_exporter = HistoryReportExporter()
 
     window_name = "AI Sport Coach"
 
@@ -1417,6 +1419,39 @@ def run_camera():
         except Exception as error:
             print(
                 f"Session report warning: {error}"
+            )
+
+        try:
+            history = database.get_training_history(
+                limit=10
+            )
+
+            progress = database.get_progress_summary(
+                limit=10
+            )
+
+            history_paths = history_exporter.export_history(
+                history,
+                progress
+            )
+
+            print(
+                "TRAINING PROGRESS | "
+                f"Sessions {progress['sessions']} | "
+                f"Latest {progress['latest_average_score']:.1f} | "
+                f"Change {progress['score_change']:+.1f} | "
+                f"Trend {progress['trend']}"
+            )
+
+            print(
+                "HISTORY REPORT | "
+                f"JSON {history_paths['json']} | "
+                f"CSV {history_paths['csv']}"
+            )
+
+        except Exception as error:
+            print(
+                f"History report warning: {error}"
             )
 
         cap.release()
