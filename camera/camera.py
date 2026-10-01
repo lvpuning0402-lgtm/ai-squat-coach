@@ -611,8 +611,13 @@ def _rep_timeline_line(
         status = "REVIEW"
 
     score = rep.get(
-        "quality_score"
+        "detail_score"
     )
+
+    if score is None:
+        score = rep.get(
+            "quality_score"
+        )
 
     score_text = (
         f"{float(score):.1f}"
@@ -727,7 +732,7 @@ def build_session_summary_frame(
             f"{summary.get('reps', 0)}"
         ),
         (
-            f"Average score: "
+            f"Core score: "
             f"{summary.get('average_score', 0.0):.1f}"
         ),
         (
@@ -776,8 +781,13 @@ def build_session_summary_frame(
             )
         ),
         (
-            f"Best rep: #"
+            f"Best core rep: #"
             f"{summary.get('best_rep') or '--'}"
+        ),
+        (
+            f"Best detail rep: #"
+            f"{summary.get('best_detail_rep') or '--'} "
+            f"({summary.get('best_detail_score') if summary.get('best_detail_score') is not None else '--'})"
         ),
     ]
 
@@ -988,7 +998,7 @@ def build_session_summary_frame(
     ]
 
     timeline_lines = [
-        "REP   VIEW   STD       DTL     SCORE   FOCUS"
+        "REP   VIEW   STD       DTL     DETAIL  FOCUS"
     ]
 
     timeline_lines.extend(
@@ -1177,8 +1187,13 @@ def draw_interface(
                     f"{last_completed_rep['quality_label']}"
                 ),
                 (
-                    f"Quality: "
+                    f"Core: "
                     f"{last_completed_rep['quality_score']:.1f}"
+                ),
+                (
+                    f"Detail: "
+                    f"{last_completed_rep.get('detail_score', 0.0):.1f} "
+                    f"{last_completed_rep.get('detail_grade', 'N/A')}"
                 )
             ]
 
@@ -1234,7 +1249,8 @@ def draw_interface(
                 f"Reps: {summary['valid_reps']}/"
                 f"{summary['reps']} valid"
             ),
-            f"Average score: {summary['average_score']:.1f}",
+            f"Core score: {summary['average_score']:.1f}",
+            f"Detail score: {summary.get('average_detail_score', 0.0):.1f}",
             (
                 f"Standard: {summary['standard_passes']}/"
                 f"{summary['valid_reps']} pass "
@@ -1284,7 +1300,11 @@ def draw_interface(
             ])
 
         set_lines.extend([
-            f"Best rep: #{summary['best_rep']}",
+            (
+                f"Best detail: #"
+                f"{summary.get('best_detail_rep') or '--'} "
+                f"{summary.get('best_detail_score') if summary.get('best_detail_score') is not None else '--'}"
+            ),
             f"Main issue: {summary['top_issue']}"
         ])
 
