@@ -112,24 +112,25 @@ class SessionInsightBuilder:
                 0.0
             )
 
-        for issue in self.ISSUE_PRIORITY:
-            if issue in counter:
-                count = counter[
-                    issue
-                ]
-                return (
-                    issue,
-                    count,
-                    self._rate(
-                        count,
-                        len(
-                            valid_reps
-                        )
+        priority = {
+            issue: index
+            for index, issue
+            in enumerate(
+                self.ISSUE_PRIORITY
+            )
+        }
+
+        issue, count = sorted(
+            counter.items(),
+            key=lambda item: (
+                -item[1],
+                priority.get(
+                    item[0],
+                    len(
+                        priority
                     )
                 )
-
-        issue, count = counter.most_common(
-            1
+            )
         )[0]
 
         return (
