@@ -58,7 +58,8 @@ class SessionReportExporterTests(unittest.TestCase):
             result = exporter.export_session(
                 7,
                 reps,
-                summary
+                summary,
+                session_type="TRAINING"
             )
 
             json_path = Path(
@@ -86,6 +87,10 @@ class SessionReportExporterTests(unittest.TestCase):
             self.assertEqual(
                 report["session_id"],
                 7
+            )
+            self.assertEqual(
+                report["session_type"],
+                "TRAINING"
             )
             self.assertEqual(
                 report["summary"]["reps"],
