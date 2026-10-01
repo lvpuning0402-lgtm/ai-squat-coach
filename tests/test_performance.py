@@ -29,7 +29,7 @@ class SessionPerformanceAnalyzerTests(unittest.TestCase):
             []
         )
 
-    def test_front_knee_in_and_asymmetry_are_reported(self):
+    def test_front_knee_tracking_is_standard_and_symmetry_is_diagnostic(self):
         analyzer = SessionPerformanceAnalyzer()
 
         result = analyzer.analyze_rep({
@@ -49,9 +49,16 @@ class SessionPerformanceAnalyzerTests(unittest.TestCase):
             "KNEE_TRACKING",
             result["issues"]
         )
-        self.assertIn(
+        self.assertNotIn(
             "ASYMMETRY",
             result["issues"]
+        )
+        self.assertIn(
+            "symmetry_score",
+            result["diagnostic_metrics"]
+        )
+        self.assertFalse(
+            result["standard_checks"]["knee_tracking"]
         )
         self.assertLess(
             result["quality_score"],
@@ -206,7 +213,7 @@ class SessionPerformanceAnalyzerTests(unittest.TestCase):
             "CONSISTENT"
         )
 
-    def test_deep_side_squat_does_not_use_fixed_trunk_angle_penalty(self):
+    def test_side_trunk_is_diagnostic_and_depth_is_standardized(self):
         analyzer = SessionPerformanceAnalyzer()
 
         result = analyzer.analyze_rep({
@@ -221,20 +228,59 @@ class SessionPerformanceAnalyzerTests(unittest.TestCase):
             "min_hip_angle": 43.0,
             "max_trunk_lean": 34.0,
             "max_head_forward": 0.34,
-            "max_sync_error": 0.32
+            "max_sync_error": 0.12,
+            "max_depth_margin": 0.08,
+            "depth_standard_met": True
         })
 
         self.assertNotIn(
             "TRUNK",
             result["issues"]
         )
-        self.assertLess(
-            result["trunk_rom_ratio"],
-            0.40
+        self.assertTrue(
+            result["standard_checks"]["depth"]
         )
-        self.assertGreaterEqual(
-            result["component_scores"]["trunk"],
-            95.0
+        self.assertTrue(
+            result["standard_met"]
+        )
+        self.assertIn(
+            "trunk_lean",
+            result["diagnostic_metrics"]
+        )
+        self.assertNotIn(
+            "trunk",
+            result["component_scores"]
+        )
+
+    def test_side_above_parallel_fails_depth_standard(self):
+        analyzer = SessionPerformanceAnalyzer()
+
+        result = analyzer.analyze_rep({
+            "rep": 1,
+            "view": "SIDE",
+            "descent_time": 1.0,
+            "bottom_time": 0.1,
+            "ascent_time": 0.8,
+            "total_time": 1.9,
+            "rom_degrees": 75.0,
+            "min_knee_angle": 105.0,
+            "min_hip_angle": 70.0,
+            "max_trunk_lean": 20.0,
+            "max_head_forward": 0.20,
+            "max_sync_error": 0.10,
+            "max_depth_margin": -0.12,
+            "depth_standard_met": False
+        })
+
+        self.assertIn(
+            "DEPTH",
+            result["issues"]
+        )
+        self.assertFalse(
+            result["standard_checks"]["depth"]
+        )
+        self.assertFalse(
+            result["standard_met"]
         )
 
     def test_relative_front_rom_outlier_is_excluded_from_set(self):
