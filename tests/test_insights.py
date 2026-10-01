@@ -288,7 +288,26 @@ class SessionInsightBuilderTests(unittest.TestCase):
                 "weakest_phase": {
                     "phase": "bottom",
                     "score": 78.5
-                }
+                },
+                "phase_deduction_summary": {
+                    "bottom": [
+                        {
+                            "name": "center_balance",
+                            "average_lost_points": 4.6,
+                            "total_lost_points": 9.2,
+                            "occurrences": 2
+                        }
+                    ]
+                },
+                "top_detail_deductions": [
+                    {
+                        "name": "center_balance",
+                        "average_lost_points": 3.8,
+                        "total_lost_points": 7.6,
+                        "affected_reps": 2,
+                        "occurrences": 2
+                    }
+                ]
             },
             session_type="TRAINING"
         )
@@ -314,6 +333,28 @@ class SessionInsightBuilderTests(unittest.TestCase):
         self.assertTrue(
             any(
                 "Weak phase" in line
+                for line in result[
+                    "ui_lines"
+                ]
+            )
+        )
+        self.assertEqual(
+            result[
+                "phase_reason"
+            ][
+                "name"
+            ],
+            "center_balance"
+        )
+        self.assertIn(
+            "身体重心稳定",
+            result[
+                "focus"
+            ]
+        )
+        self.assertTrue(
+            any(
+                "Why:" in line
                 for line in result[
                     "ui_lines"
                 ]
