@@ -34,6 +34,7 @@ class SideSquatAnalyzer:
         self.hip_buffer = deque(maxlen=7)
         self.trunk_buffer = deque(maxlen=9)
         self.head_buffer = deque(maxlen=9)
+        self.shin_buffer = deque(maxlen=7)
         self.knee_velocity_buffer = deque(maxlen=5)
         self.sync_buffer = deque(maxlen=7)
 
@@ -82,6 +83,8 @@ class SideSquatAnalyzer:
 
         self.current_min_knee_angle = 180.0
         self.current_min_hip_angle = 180.0
+        self.current_max_knee_angle = 0.0
+        self.current_shin_angle_at_min_knee = 0.0
         self.current_max_trunk_lean = 0.0
         self.current_max_head_forward = 0.0
         self.current_max_sync_error = 0.0
@@ -161,6 +164,7 @@ class SideSquatAnalyzer:
         self.hip_buffer.clear()
         self.trunk_buffer.clear()
         self.head_buffer.clear()
+        self.shin_buffer.clear()
         self.knee_velocity_buffer.clear()
         self.sync_buffer.clear()
         self.ascent_sync_buffer.clear()
@@ -175,6 +179,8 @@ class SideSquatAnalyzer:
 
         self.current_min_knee_angle = 180.0
         self.current_min_hip_angle = 180.0
+        self.current_max_knee_angle = 0.0
+        self.current_shin_angle_at_min_knee = 0.0
         self.current_max_trunk_lean = 0.0
         self.current_max_head_forward = 0.0
         self.current_max_sync_error = 0.0
@@ -267,6 +273,10 @@ class SideSquatAnalyzer:
             "rom_degrees": rom_degrees,
             "min_knee_angle": self.current_min_knee_angle,
             "min_hip_angle": self.current_min_hip_angle,
+            "max_knee_angle": self.current_max_knee_angle,
+            "shin_angle_at_min_knee": (
+                self.current_shin_angle_at_min_knee
+            ),
             "max_trunk_lean": self.current_max_trunk_lean,
             "max_head_forward": self.current_max_head_forward,
             "max_sync_error": self.current_max_sync_error,
@@ -337,6 +347,30 @@ class SideSquatAnalyzer:
             self.trunk_buffer
         )
 
+        shin_dx = abs(
+            knee[0]
+            - ankle[0]
+        )
+        shin_dy = abs(
+            knee[1]
+            - ankle[1]
+        )
+        shin_angle = math.degrees(
+            math.atan2(
+                shin_dx,
+                max(
+                    shin_dy,
+                    0.001
+                )
+            )
+        )
+        self.shin_buffer.append(
+            shin_angle
+        )
+        smooth_shin_angle = median(
+            self.shin_buffer
+        )
+
         torso_length = max(
             math.dist(
                 shoulder,
@@ -393,6 +427,9 @@ class SideSquatAnalyzer:
             )
             self.head_buffer.append(
                 head_forward
+            )
+            self.shin_buffer.append(
+                shin_angle
             )
 
             smooth_knee = knee_angle
@@ -722,10 +759,22 @@ class SideSquatAnalyzer:
             != "STANDING"
             and not rep_aborted
         ):
-            self.current_min_knee_angle = min(
-                self.current_min_knee_angle,
+            if (
+                smooth_knee
+                < self.current_min_knee_angle
+            ):
+                self.current_min_knee_angle = (
+                    smooth_knee
+                )
+                self.current_shin_angle_at_min_knee = (
+                    smooth_shin_angle
+                )
+
+            self.current_max_knee_angle = max(
+                self.current_max_knee_angle,
                 smooth_knee
             )
+
             self.current_min_hip_angle = min(
                 self.current_min_hip_angle,
                 smooth_hip
@@ -786,6 +835,7 @@ class SideSquatAnalyzer:
             "baseline_reset": baseline_reset,
             "knee_angle": smooth_knee,
             "hip_angle": smooth_hip,
+            "shin_angle": smooth_shin_angle,
             "trunk_lean": smooth_trunk,
             "head_forward": smooth_head,
             "shoulder_hip_sync": smooth_sync,
