@@ -4,7 +4,10 @@ import math
 import time
 
 from pose.angles import calculate_angle
-from standards.squat_standard import DETECTION
+from standards.squat_standard import (
+    DETECTION,
+    VISION_TOLERANCE,
+)
 
 
 class SideSquatAnalyzer:
@@ -82,6 +85,10 @@ class SideSquatAnalyzer:
         self.current_max_trunk_lean = 0.0
         self.current_max_head_forward = 0.0
         self.current_max_sync_error = 0.0
+        self.current_max_ascent_sync_error = 0.0
+        self.ascent_start_shoulder_descent = None
+        self.ascent_start_hip_descent = None
+        self.ascent_sync_buffer = deque(maxlen=5)
         self.current_max_depth_margin = -10.0
 
         self.last_rep = None
@@ -156,6 +163,7 @@ class SideSquatAnalyzer:
         self.head_buffer.clear()
         self.knee_velocity_buffer.clear()
         self.sync_buffer.clear()
+        self.ascent_sync_buffer.clear()
 
         self.previous_knee_angle = 180.0
 
@@ -170,6 +178,10 @@ class SideSquatAnalyzer:
         self.current_max_trunk_lean = 0.0
         self.current_max_head_forward = 0.0
         self.current_max_sync_error = 0.0
+        self.current_max_ascent_sync_error = 0.0
+        self.ascent_start_shoulder_descent = None
+        self.ascent_start_hip_descent = None
+        self.ascent_sync_buffer.clear()
         self.current_max_depth_margin = -10.0
 
     def reanchor_baseline(
@@ -258,10 +270,19 @@ class SideSquatAnalyzer:
             "max_trunk_lean": self.current_max_trunk_lean,
             "max_head_forward": self.current_max_head_forward,
             "max_sync_error": self.current_max_sync_error,
+            "max_ascent_sync_error": self.current_max_ascent_sync_error,
             "max_depth_margin": self.current_max_depth_margin,
             "depth_standard_met": (
                 self.current_max_depth_margin
-                >= 0.0
+                >= VISION_TOLERANCE[
+                    "general_depth_margin_min"
+                ]
+            ),
+            "ipf_depth_proxy_met": (
+                self.current_max_depth_margin
+                >= VISION_TOLERANCE[
+                    "ipf_depth_margin_min"
+                ]
             )
         }
 
@@ -617,9 +638,63 @@ class SideSquatAnalyzer:
                 ):
                     self.phase = "ASCENDING"
                     self.ascent_start_time = now
+                    self.ascent_start_shoulder_descent = (
+                        shoulder_descent
+                    )
+                    self.ascent_start_hip_descent = (
+                        hip_descent
+                    )
+                    self.ascent_sync_buffer.clear()
                     self.abort_frames = 0
 
             elif self.phase == "ASCENDING":
+                if (
+                    self.ascent_start_shoulder_descent
+                    is not None
+                    and self.ascent_start_hip_descent
+                    is not None
+                ):
+                    shoulder_range = max(
+                        abs(
+                            self.ascent_start_shoulder_descent
+                        ),
+                        0.02
+                    )
+                    hip_range = max(
+                        abs(
+                            self.ascent_start_hip_descent
+                        ),
+                        0.02
+                    )
+
+                    shoulder_progress = (
+                        self.ascent_start_shoulder_descent
+                        - shoulder_descent
+                    ) / shoulder_range
+
+                    hip_progress = (
+                        self.ascent_start_hip_descent
+                        - hip_descent
+                    ) / hip_range
+
+                    ascent_sync_error = abs(
+                        shoulder_progress
+                        - hip_progress
+                    )
+
+                    self.ascent_sync_buffer.append(
+                        ascent_sync_error
+                    )
+
+                    smooth_ascent_sync = median(
+                        self.ascent_sync_buffer
+                    )
+
+                    self.current_max_ascent_sync_error = max(
+                        self.current_max_ascent_sync_error,
+                        smooth_ascent_sync
+                    )
+
                 if (
                     smooth_knee
                     > self.standing_angle
@@ -677,10 +752,19 @@ class SideSquatAnalyzer:
             depth_margin
         )
 
+        general_depth_min = VISION_TOLERANCE[
+            "general_depth_margin_min"
+        ]
+        ipf_depth_min = VISION_TOLERANCE[
+            "ipf_depth_margin_min"
+        ]
+
         if self.phase == "STANDING":
             depth = "READY"
-        elif current_depth_margin >= 0.0:
-            depth = "STANDARD DEPTH"
+        elif current_depth_margin >= ipf_depth_min:
+            depth = "BELOW PARALLEL"
+        elif current_depth_margin >= general_depth_min:
+            depth = "PARALLEL"
         else:
             depth = "ABOVE PARALLEL"
 
@@ -705,6 +789,13 @@ class SideSquatAnalyzer:
             "trunk_lean": smooth_trunk,
             "head_forward": smooth_head,
             "shoulder_hip_sync": smooth_sync,
+            "ascent_sync_error": (
+                median(
+                    self.ascent_sync_buffer
+                )
+                if self.ascent_sync_buffer
+                else None
+            ),
             "knee_velocity": smooth_knee_velocity,
             "shoulder_descent": shoulder_descent,
             "hip_descent": hip_descent,
@@ -712,7 +803,11 @@ class SideSquatAnalyzer:
             "depth_margin": depth_margin,
             "depth_standard_met": (
                 current_depth_margin
-                >= 0.0
+                >= general_depth_min
+            ),
+            "ipf_depth_proxy_met": (
+                current_depth_margin
+                >= ipf_depth_min
             ),
             "rom_degrees": max(
                 0.0,
