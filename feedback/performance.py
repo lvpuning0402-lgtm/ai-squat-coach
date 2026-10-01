@@ -5,6 +5,7 @@ from standards.squat_standard import (
     STANDARD_NAME,
     VISION_TOLERANCE,
 )
+from feedback.competition_detail import CompetitionDetailEvaluator
 
 
 class SessionPerformanceAnalyzer:
@@ -22,6 +23,7 @@ class SessionPerformanceAnalyzer:
 
     def __init__(self):
         self.reps = []
+        self.detail_evaluator = CompetitionDetailEvaluator()
 
     @staticmethod
     def _clamp(value, low=0.0, high=100.0):
@@ -792,6 +794,25 @@ class SessionPerformanceAnalyzer:
             rep_data
         )
 
+        standard_score = round(
+            quality_score,
+            1
+        )
+
+        standard_met = (
+            all(
+                standard_checks.values()
+            )
+            if standard_checks
+            else False
+        )
+
+        detail_result = self.detail_evaluator.evaluate({
+            **rep_data,
+            "standard_checks": standard_checks,
+            "standard_met": standard_met,
+        })
+
         analyzed = {
             **rep_data,
             "quality_score": round(
@@ -807,17 +828,32 @@ class SessionPerformanceAnalyzer:
             "standard_profile": STANDARD_NAME,
             "standard_scope": standard_scope,
             "standard_checks": standard_checks,
-            "standard_score": round(
-                quality_score,
-                1
-            ),
-            "standard_met": (
-                all(
-                    standard_checks.values()
-                )
-                if standard_checks
-                else False
-            ),
+            "standard_score": standard_score,
+            "standard_met": standard_met,
+            "detail_profile": detail_result[
+                "detail_profile"
+            ],
+            "detail_profile_version": detail_result[
+                "detail_profile_version"
+            ],
+            "detail_score": detail_result[
+                "detail_score"
+            ],
+            "detail_label": detail_result[
+                "detail_label"
+            ],
+            "detail_checks": detail_result[
+                "checks"
+            ],
+            "detail_warnings": detail_result[
+                "detail_warnings"
+            ],
+            "angle_metrics": detail_result[
+                "angle_metrics"
+            ],
+            "competition_lenses": detail_result[
+                "competition_lenses"
+            ],
             "diagnostic_metrics": diagnostic_metrics,
             "trunk_rom_ratio": (
                 round(
@@ -854,6 +890,10 @@ class SessionPerformanceAnalyzer:
                 "valid_reps": 0,
                 "excluded_reps": 0,
                 "average_score": 0.0,
+                "average_detail_score": 0.0,
+                "detail_watch_reps": 0,
+                "detail_watch_rate": 0.0,
+                "top_detail_warning": "NONE",
                 "standard_passes": 0,
                 "standard_pass_rate": 0.0,
                 "side_reps": 0,
@@ -886,6 +926,10 @@ class SessionPerformanceAnalyzer:
                     self.reps
                 ),
                 "average_score": 0.0,
+                "average_detail_score": 0.0,
+                "detail_watch_reps": 0,
+                "detail_watch_rate": 0.0,
+                "top_detail_warning": "NONE",
                 "standard_passes": 0,
                 "standard_pass_rate": 0.0,
                 "side_reps": 0,
@@ -956,6 +1000,59 @@ class SessionPerformanceAnalyzer:
 
         average_score = mean(
             scores
+        )
+
+        detail_scores = [
+            rep.get(
+                "detail_score"
+            )
+            for rep in valid_reps
+            if rep.get(
+                "detail_score"
+            ) is not None
+        ]
+
+        average_detail_score = (
+            mean(
+                detail_scores
+            )
+            if detail_scores
+            else 0.0
+        )
+
+        detail_watch_reps = sum(
+            1
+            for rep in valid_reps
+            if rep.get(
+                "detail_warnings",
+                []
+            )
+        )
+
+        detail_watch_rate = (
+            detail_watch_reps
+            / len(
+                valid_reps
+            )
+            * 100.0
+        )
+
+        detail_warning_counter = Counter()
+
+        for rep in valid_reps:
+            detail_warning_counter.update(
+                rep.get(
+                    "detail_warnings",
+                    []
+                )
+            )
+
+        top_detail_warning = (
+            detail_warning_counter.most_common(
+                1
+            )[0][0]
+            if detail_warning_counter
+            else "NONE"
         )
 
         standard_passes = sum(
@@ -1147,6 +1244,16 @@ class SessionPerformanceAnalyzer:
                 average_score,
                 1
             ),
+            "average_detail_score": round(
+                average_detail_score,
+                1
+            ),
+            "detail_watch_reps": detail_watch_reps,
+            "detail_watch_rate": round(
+                detail_watch_rate,
+                1
+            ),
+            "top_detail_warning": top_detail_warning,
             "standard_passes": standard_passes,
             "standard_pass_rate": round(
                 standard_pass_rate,
