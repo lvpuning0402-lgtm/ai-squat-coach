@@ -292,6 +292,8 @@ def save_completed_rep(
         f"#{analyzed['rep']} | "
         f"{analyzed['view']} | "
         f"Quality {analyzed['quality_score']:.1f} | "
+        f"Detail {analyzed.get('detail_score', 0.0):.1f} "
+        f"{analyzed.get('detail_label', 'INFO')} | "
         f"{analyzed['quality_label']} | "
         f"{confidence_text}"
     )
@@ -2431,19 +2433,22 @@ def run_camera():
                 "SESSION SUMMARY | "
                 f"Reps {summary['reps']} | "
                 f"Average {summary['average_score']:.1f} | "
+                f"Detail {summary['average_detail_score']:.1f} | "
                 f"Valid {summary['valid_reps']}/{summary['reps']} | "
                 f"Standard {summary['standard_passes']}/"
                 f"{summary['valid_reps']} "
                 f"({summary['standard_pass_rate']:.1f}%) | "
                 f"Consistency {summary['consistency_label']} | "
                 f"Trend {summary['trend']} | "
-                f"Issue {summary['top_issue']}"
+                f"Issue {summary['top_issue']} | "
+                f"Detail focus {summary['top_detail_warning']}"
             )
         else:
             print(
                 "TEST SUMMARY | "
                 f"Reps {summary['reps']} | "
                 f"Average {summary['average_score']:.1f} | "
+                f"Detail {summary['average_detail_score']:.1f} | "
                 f"Valid {summary['valid_reps']}/{summary['reps']} | "
                 f"Standard {summary['standard_passes']}/"
                 f"{summary['valid_reps']} "
@@ -2452,7 +2457,8 @@ def run_camera():
                 f"{summary['side_reps']} general | "
                 f"IPF proxy {summary['side_ipf_proxy_passes']}/"
                 f"{summary['side_reps']} | "
-                f"Issue {summary['top_issue']}"
+                f"Issue {summary['top_issue']} | "
+                f"Detail focus {summary['top_detail_warning']}"
             )
 
         try:
