@@ -848,6 +848,10 @@ class SessionPerformanceAnalyzer:
             "detail_warnings": detail_result[
                 "detail_warnings"
             ],
+            "competition_flags": detail_result.get(
+                "competition_flags",
+                []
+            ),
             "angle_metrics": detail_result[
                 "angle_metrics"
             ],
