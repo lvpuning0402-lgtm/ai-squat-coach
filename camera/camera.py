@@ -58,6 +58,29 @@ def metric_state(
     return "WATCH"
 
 
+def ascent_control_state(
+    value,
+    phase
+):
+    if (
+        value is None
+        or phase != "ASCENDING"
+    ):
+        return "READY"
+
+    return metric_state(
+        value,
+        VISION_TOLERANCE[
+            "ascent_progress_good_max"
+        ],
+        VISION_TOLERANCE[
+            "ascent_progress_bad_min"
+        ],
+        "OK",
+        "CHECK"
+    )
+
+
 def format_time(value):
     if value is None:
         return "--"
@@ -533,6 +556,17 @@ def draw_interface(
                 f"{last_completed_rep['view']}"
             ),
             (
+                f"Standard: "
+                + (
+                    "PASS"
+                    if last_completed_rep.get(
+                        "standard_met",
+                        False
+                    )
+                    else "REVIEW"
+                )
+            ),
+            (
                 f"Quality: "
                 f"{last_completed_rep['quality_score']:.1f}  "
                 f"{last_completed_rep['quality_label']}"
@@ -974,18 +1008,13 @@ def run_camera():
                                 )
                             )
 
-                        sync_state = metric_state(
+                        sync_state = ascent_control_state(
+                            front_result.get(
+                                "ascent_sync_error"
+                            ),
                             front_result[
-                                "shoulder_hip_sync"
-                            ],
-                            VISION_TOLERANCE[
-                                "sync_good_max"
-                            ],
-                            VISION_TOLERANCE[
-                                "sync_bad_min"
-                            ],
-                            "OK",
-                            "CHECK"
+                                "phase"
+                            ]
                         )
 
                         simple_lines = [
@@ -1030,9 +1059,15 @@ def run_camera():
                                 f"{front_form['right_state']}"
                             ),
                             (
-                                f"Ascent sync "
-                                f"{front_result['shoulder_hip_sync']:.2f} "
-                                f"[{sync_state}]"
+                                "Ascent sync "
+                                + (
+                                    f"{front_result['ascent_sync_error']:.2f}"
+                                    if front_result.get(
+                                        "ascent_sync_error"
+                                    ) is not None
+                                    else "--"
+                                )
+                                + f" [{sync_state}]"
                             ),
                             (
                                 f"Head shift "
@@ -1175,18 +1210,13 @@ def run_camera():
                             )
                         )
 
-                    sync_state = metric_state(
+                    sync_state = ascent_control_state(
+                        side_result.get(
+                            "ascent_sync_error"
+                        ),
                         side_result[
-                            "shoulder_hip_sync"
-                        ],
-                        VISION_TOLERANCE[
-                            "sync_good_max"
-                        ],
-                        VISION_TOLERANCE[
-                            "sync_bad_min"
-                        ],
-                        "OK",
-                        "CHECK"
+                            "phase"
+                        ]
                     )
 
                     simple_lines = [
@@ -1233,9 +1263,15 @@ def run_camera():
                             f"{side_result['depth']}"
                         ),
                         (
-                            f"Ascent sync "
-                            f"{side_result['shoulder_hip_sync']:.2f} "
-                            f"[{sync_state}]"
+                            "Ascent sync "
+                            + (
+                                f"{side_result['ascent_sync_error']:.2f}"
+                                if side_result.get(
+                                    "ascent_sync_error"
+                                ) is not None
+                                else "--"
+                            )
+                            + f" [{sync_state}]"
                         ),
                         (
                             f"Trunk lean "
