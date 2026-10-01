@@ -726,6 +726,155 @@ class TrainingDatabase:
 
         return True
 
+    @staticmethod
+    def _median(
+        values
+    ):
+        cleaned = sorted(
+            float(value)
+            for value in values
+            if value is not None
+        )
+
+        if not cleaned:
+            return None
+
+        middle = len(
+            cleaned
+        ) // 2
+
+        if len(
+            cleaned
+        ) % 2:
+            return cleaned[
+                middle
+            ]
+
+        return (
+            cleaned[
+                middle - 1
+            ]
+            + cleaned[
+                middle
+            ]
+        ) / 2
+
+    def _filter_relative_session_outliers(
+        self,
+        reps
+    ):
+        """
+        过滤同一 session、同一视角下明显偏离本组模式的 Rep。
+        """
+        reliable = list(
+            reps
+        )
+
+        excluded_ids = set()
+
+        for view in (
+            "FRONT",
+            "SIDE"
+        ):
+            view_reps = [
+                rep
+                for rep in reliable
+                if rep.get(
+                    "view"
+                ) == view
+            ]
+
+            if len(
+                view_reps
+            ) < 4:
+                continue
+
+            tempo_median = self._median([
+                rep.get(
+                    "total_time"
+                )
+                for rep in view_reps
+            ])
+
+            rom_key = (
+                "rom"
+                if view == "FRONT"
+                else "rom_degrees"
+            )
+
+            rom_median = self._median([
+                rep.get(
+                    "metrics",
+                    {}
+                ).get(
+                    rom_key
+                )
+                for rep in view_reps
+            ])
+
+            for rep in view_reps:
+                total_time = rep.get(
+                    "total_time"
+                )
+
+                if (
+                    tempo_median
+                    and total_time
+                ):
+                    tempo_ratio = (
+                        float(
+                            total_time
+                        )
+                        / tempo_median
+                    )
+
+                    if (
+                        tempo_ratio < 0.45
+                        or tempo_ratio > 2.20
+                    ):
+                        excluded_ids.add(
+                            rep[
+                                "id"
+                            ]
+                        )
+                        continue
+
+                rom_value = rep.get(
+                    "metrics",
+                    {}
+                ).get(
+                    rom_key
+                )
+
+                if (
+                    rom_median
+                    and rom_value
+                ):
+                    rom_ratio = (
+                        float(
+                            rom_value
+                        )
+                        / rom_median
+                    )
+
+                    if (
+                        rom_ratio < 0.55
+                        or rom_ratio > 1.80
+                    ):
+                        excluded_ids.add(
+                            rep[
+                                "id"
+                            ]
+                        )
+
+        return [
+            rep
+            for rep in reliable
+            if rep.get(
+                "id"
+            ) not in excluded_ids
+        ]
+
     def get_training_history(
         self,
         limit=10,
@@ -767,13 +916,17 @@ class TrainingDatabase:
                 session["id"]
             )
 
-            reps = [
+            absolute_reliable_reps = [
                 rep
                 for rep in all_reps
                 if self._stored_rep_is_reliable(
                     rep
                 )
             ]
+
+            reps = self._filter_relative_session_outliers(
+                absolute_reliable_reps
+            )
 
             if len(
                 reps
