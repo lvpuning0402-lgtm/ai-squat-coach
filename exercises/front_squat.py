@@ -1,85 +1,71 @@
 from collections import deque
 from statistics import median
+import time
 
 from pose.angles import calculate_angle
 
 
 class FrontSquatAnalyzer:
+    """
+    正面深蹲分析器。
+
+    核心原则：
+    1. 不依赖单一膝角判断是否下蹲。
+    2. 主要使用肩部/髋部整体下降。
+    3. 膝角只作为辅助信号。
+    4. 使用多阶段状态机：
+       STANDING -> DESCENDING -> BOTTOM -> ASCENDING -> STANDING
+    5. 同时记录节奏、ROM、头部稳定、肩部水平和肩髋同步。
+    """
+
     def __init__(self):
-        # =====================================
-        # 动作状态
-        # =====================================
-
-        self.stage = "CALIBRATING"
-
+        self.phase = "STANDING"
         self.count = 0
-
-        self.down_frames = 0
-        self.up_frames = 0
-
-        self.required_frames = 6
-
-        self.rep_started = False
-
-        # =====================================
-        # 站立基准
-        # =====================================
 
         self.baseline_shoulder_y = None
         self.baseline_hip_y = None
         self.baseline_body_height = None
+        self.baseline_shoulder_x = None
+        self.baseline_alpha = 0.04
 
-        # =====================================
-        # 基准更新速度
-        # =====================================
+        self.shoulder_buffer = deque(maxlen=7)
+        self.hip_buffer = deque(maxlen=7)
+        self.combined_buffer = deque(maxlen=7)
+        self.velocity_buffer = deque(maxlen=5)
+        self.head_shift_buffer = deque(maxlen=7)
+        self.shoulder_tilt_buffer = deque(maxlen=7)
+        self.center_shift_buffer = deque(maxlen=7)
 
-        self.baseline_alpha = 0.05
+        self.previous_descent = 0.0
 
-        # =====================================
-        # 下蹲阈值
-        #
-        # 都按身体高度归一化
-        # =====================================
+        self.start_descent_threshold = 0.045
+        self.bottom_depth_threshold = 0.105
+        self.standing_threshold = 0.050
 
-        self.shoulder_down_threshold = 0.11
+        self.phase_confirm_frames = 3
+        self.standing_confirm_frames = 6
 
-        self.hip_down_threshold = 0.10
+        self.descending_frames = 0
+        self.bottom_frames = 0
+        self.ascending_frames = 0
+        self.standing_frames = 0
 
-        self.up_threshold = 0.045
+        self.rep_start_time = None
+        self.descent_start_time = None
+        self.bottom_start_time = None
+        self.ascent_start_time = None
 
-        # =====================================
-        # 平滑
-        # =====================================
+        self.current_max_descent = 0.0
+        self.current_max_head_shift = 0.0
+        self.current_max_shoulder_tilt = 0.0
+        self.current_max_center_shift = 0.0
+        self.current_max_sync_error = 0.0
+        self.current_min_knee_angle = 180.0
 
-        self.shoulder_descent_buffer = deque(
-            maxlen=7
-        )
+        self.last_rep = None
 
-        self.hip_descent_buffer = deque(
-            maxlen=7
-        )
-
-        # =====================================
-        # 头部中线偏移
-        # =====================================
-
-        self.head_shift_buffer = deque(
-            maxlen=7
-        )
-
-        # =====================================
-        # 肩膀高低差
-        # =====================================
-
-        self.shoulder_tilt_buffer = deque(
-            maxlen=7
-        )
-
-    def midpoint(
-        self,
-        a,
-        b
-    ):
+    @staticmethod
+    def midpoint(a, b):
         return (
             (a[0] + b[0]) / 2,
             (a[1] + b[1]) / 2
@@ -87,57 +73,81 @@ class FrontSquatAnalyzer:
 
     def update_baseline(
         self,
-        shoulder_y,
-        hip_y,
+        shoulder_center,
+        hip_center,
         body_height
     ):
         if self.baseline_shoulder_y is None:
-
-            self.baseline_shoulder_y = shoulder_y
-            self.baseline_hip_y = hip_y
+            self.baseline_shoulder_y = shoulder_center[1]
+            self.baseline_hip_y = hip_center[1]
             self.baseline_body_height = body_height
-
-            self.stage = "up"
-
+            self.baseline_shoulder_x = shoulder_center[0]
             return
 
         alpha = self.baseline_alpha
 
-        self.baseline_shoulder_y = (
-            self.baseline_shoulder_y
-            +
-            alpha
-            *
-            (
-                shoulder_y
-                -
-                self.baseline_shoulder_y
-            )
+        self.baseline_shoulder_y += alpha * (
+            shoulder_center[1] - self.baseline_shoulder_y
+        )
+        self.baseline_hip_y += alpha * (
+            hip_center[1] - self.baseline_hip_y
+        )
+        self.baseline_body_height += alpha * (
+            body_height - self.baseline_body_height
+        )
+        self.baseline_shoulder_x += alpha * (
+            shoulder_center[0] - self.baseline_shoulder_x
         )
 
-        self.baseline_hip_y = (
-            self.baseline_hip_y
-            +
-            alpha
-            *
-            (
-                hip_y
-                -
-                self.baseline_hip_y
-            )
-        )
+    def reset_rep_metrics(self):
+        self.rep_start_time = None
+        self.descent_start_time = None
+        self.bottom_start_time = None
+        self.ascent_start_time = None
 
-        self.baseline_body_height = (
-            self.baseline_body_height
-            +
-            alpha
-            *
-            (
-                body_height
-                -
-                self.baseline_body_height
-            )
-        )
+        self.current_max_descent = 0.0
+        self.current_max_head_shift = 0.0
+        self.current_max_shoulder_tilt = 0.0
+        self.current_max_center_shift = 0.0
+        self.current_max_sync_error = 0.0
+        self.current_min_knee_angle = 180.0
+
+    def complete_rep(self, now):
+        descent_time = None
+        bottom_time = None
+        ascent_time = None
+        total_time = None
+
+        if self.descent_start_time is not None and self.bottom_start_time is not None:
+            descent_time = self.bottom_start_time - self.descent_start_time
+
+        if self.bottom_start_time is not None and self.ascent_start_time is not None:
+            bottom_time = self.ascent_start_time - self.bottom_start_time
+
+        if self.ascent_start_time is not None:
+            ascent_time = now - self.ascent_start_time
+
+        if self.rep_start_time is not None:
+            total_time = now - self.rep_start_time
+
+        self.last_rep = {
+            "rep": self.count,
+            "view": "FRONT",
+            "descent_time": descent_time,
+            "bottom_time": bottom_time,
+            "ascent_time": ascent_time,
+            "total_time": total_time,
+            "rom": self.current_max_descent,
+            "min_knee_angle": self.current_min_knee_angle,
+            "max_head_shift": self.current_max_head_shift,
+            "max_shoulder_tilt": self.current_max_shoulder_tilt,
+            "max_center_shift": self.current_max_center_shift,
+            "max_sync_error": self.current_max_sync_error
+        }
+
+        result = self.last_rep
+        self.reset_rep_metrics()
+        return result
 
     def analyze(
         self,
@@ -151,54 +161,34 @@ class FrontSquatAnalyzer:
         left_ankle,
         right_ankle
     ):
-        # =====================================
-        # 中心点
-        # =====================================
+        now = time.perf_counter()
 
         shoulder_center = self.midpoint(
             left_shoulder,
             right_shoulder
         )
-
         hip_center = self.midpoint(
             left_hip,
             right_hip
         )
-
         ankle_center = self.midpoint(
             left_ankle,
             right_ankle
         )
 
-        # =====================================
-        # 当前身体高度
-        # =====================================
-
         body_height = abs(
-            ankle_center[1]
-            -
-            shoulder_center[1]
+            ankle_center[1] - shoulder_center[1]
         )
 
         if body_height < 0.05:
-
             return None
 
-        # =====================================
-        # 初始校准
-        # =====================================
-
         if self.baseline_shoulder_y is None:
-
             self.update_baseline(
-                shoulder_center[1],
-                hip_center[1],
+                shoulder_center,
+                hip_center,
                 body_height
             )
-
-        # =====================================
-        # 归一化下降量
-        # =====================================
 
         baseline_height = max(
             self.baseline_body_height,
@@ -207,45 +197,59 @@ class FrontSquatAnalyzer:
 
         shoulder_descent = (
             shoulder_center[1]
-            -
-            self.baseline_shoulder_y
+            - self.baseline_shoulder_y
         ) / baseline_height
 
         hip_descent = (
             hip_center[1]
-            -
-            self.baseline_hip_y
+            - self.baseline_hip_y
         ) / baseline_height
 
-        self.shoulder_descent_buffer.append(
+        self.shoulder_buffer.append(
             shoulder_descent
         )
-
-        self.hip_descent_buffer.append(
+        self.hip_buffer.append(
             hip_descent
         )
 
         smooth_shoulder_descent = median(
-            self.shoulder_descent_buffer
+            self.shoulder_buffer
         )
-
         smooth_hip_descent = median(
-            self.hip_descent_buffer
+            self.hip_buffer
         )
 
-        # =====================================
-        # 双膝角
-        #
-        # 正面不把它作为核心状态判断，
-        # 只作为辅助信号
-        # =====================================
+        # 髋点在深蹲最低位可能被遮挡，因此肩部权重更高。
+        combined_descent = (
+            0.65 * smooth_shoulder_descent
+            + 0.35 * smooth_hip_descent
+        )
+
+        self.combined_buffer.append(
+            combined_descent
+        )
+        smooth_descent = median(
+            self.combined_buffer
+        )
+
+        velocity = (
+            smooth_descent
+            - self.previous_descent
+        )
+        self.previous_descent = smooth_descent
+
+        self.velocity_buffer.append(
+            velocity
+        )
+        smooth_velocity = median(
+            self.velocity_buffer
+        )
 
         left_knee_angle = calculate_angle(
             left_hip,
             left_knee,
             left_ankle
         )
-
         right_knee_angle = calculate_angle(
             right_hip,
             right_knee,
@@ -254,214 +258,225 @@ class FrontSquatAnalyzer:
 
         average_knee_angle = (
             left_knee_angle
-            +
-            right_knee_angle
+            + right_knee_angle
         ) / 2
 
-        knee_bent = (
-            average_knee_angle
-            <
-            165
-        )
-
-        # =====================================
-        # FRONT DOWN 判断
-        #
-        # 肩 / 髋至少一个明显下降
-        # 同时膝盖出现一定屈曲
-        # =====================================
-
-        down_signal = (
-            (
-                smooth_shoulder_descent
-                >
-                self.shoulder_down_threshold
-            )
-            or
-            (
-                smooth_hip_descent
-                >
-                self.hip_down_threshold
-            )
-        ) and knee_bent
-
-        # =====================================
-        # UP 判断
-        # =====================================
-
-        up_signal = (
-            smooth_shoulder_descent
-            <
-            self.up_threshold
-            and
-            smooth_hip_descent
-            <
-            self.up_threshold
-        )
-
-        rep_completed = False
-
-        # =====================================
-        # DOWN
-        # =====================================
-
-        if down_signal:
-
-            self.down_frames += 1
-
-            self.up_frames = 0
-
-            if (
-                self.down_frames
-                >=
-                self.required_frames
-            ):
-
-                if self.stage == "up":
-
-                    self.stage = "down"
-
-                    self.rep_started = True
-
-        # =====================================
-        # UP
-        # =====================================
-
-        elif up_signal:
-
-            self.up_frames += 1
-
-            self.down_frames = 0
-
-            if (
-                self.up_frames
-                >=
-                self.required_frames
-            ):
-
-                if (
-                    self.stage == "down"
-                    and
-                    self.rep_started
-                ):
-
-                    self.count += 1
-
-                    rep_completed = True
-
-                    self.rep_started = False
-
-                self.stage = "up"
-
-                # 只有稳定站立时更新基准
-                self.update_baseline(
-                    shoulder_center[1],
-                    hip_center[1],
-                    body_height
-                )
-
-        else:
-
-            self.down_frames = 0
-
-            self.up_frames = 0
-
-        # =====================================
-        # 头部中线偏移
-        #
-        # 相对肩宽归一化
-        # =====================================
-
-        shoulder_width = abs(
-            right_shoulder[0]
-            -
-            left_shoulder[0]
-        )
-
         shoulder_width = max(
-            shoulder_width,
+            abs(
+                right_shoulder[0]
+                - left_shoulder[0]
+            ),
             0.01
         )
 
         head_shift = abs(
-            nose[0]
-            -
-            shoulder_center[0]
+            nose[0] - shoulder_center[0]
         ) / shoulder_width
+
+        shoulder_tilt = abs(
+            left_shoulder[1]
+            - right_shoulder[1]
+        ) / shoulder_width
+
+        center_shift = abs(
+            shoulder_center[0]
+            - self.baseline_shoulder_x
+        ) / shoulder_width
+
+        sync_error = abs(
+            smooth_shoulder_descent
+            - smooth_hip_descent
+        )
 
         self.head_shift_buffer.append(
             head_shift
+        )
+        self.shoulder_tilt_buffer.append(
+            shoulder_tilt
+        )
+        self.center_shift_buffer.append(
+            center_shift
         )
 
         smooth_head_shift = median(
             self.head_shift_buffer
         )
-
-        # =====================================
-        # 肩膀高低差
-        # =====================================
-
-        shoulder_tilt = abs(
-            left_shoulder[1]
-            -
-            right_shoulder[1]
-        ) / shoulder_width
-
-        self.shoulder_tilt_buffer.append(
-            shoulder_tilt
-        )
-
         smooth_shoulder_tilt = median(
             self.shoulder_tilt_buffer
         )
+        smooth_center_shift = median(
+            self.center_shift_buffer
+        )
+
+        knee_bent = average_knee_angle < 168
+        rep_completed = False
+        rep_summary = None
+
+        # =====================================
+        # 五阶段中的四个运动阶段
+        # STANDING / DESCENDING / BOTTOM /
+        # ASCENDING
+        # =====================================
+
+        if self.phase == "STANDING":
+            self.update_baseline(
+                shoulder_center,
+                hip_center,
+                body_height
+            )
+
+            start_signal = (
+                smooth_descent
+                > self.start_descent_threshold
+                and knee_bent
+                and smooth_velocity > 0.0005
+            )
+
+            if start_signal:
+                self.descending_frames += 1
+            else:
+                self.descending_frames = 0
+
+            if self.descending_frames >= self.phase_confirm_frames:
+                self.phase = "DESCENDING"
+                self.rep_start_time = now
+                self.descent_start_time = now
+                self.current_max_descent = smooth_descent
+
+        elif self.phase == "DESCENDING":
+            self.current_max_descent = max(
+                self.current_max_descent,
+                smooth_descent
+            )
+
+            bottom_signal = (
+                smooth_descent
+                > self.bottom_depth_threshold
+                and (
+                    abs(smooth_velocity) < 0.0015
+                    or smooth_velocity < -0.0005
+                )
+            )
+
+            if bottom_signal:
+                self.bottom_frames += 1
+            else:
+                self.bottom_frames = 0
+
+            if self.bottom_frames >= self.phase_confirm_frames:
+                self.phase = "BOTTOM"
+                self.bottom_start_time = now
+
+        elif self.phase == "BOTTOM":
+            self.current_max_descent = max(
+                self.current_max_descent,
+                smooth_descent
+            )
+
+            if smooth_velocity < -0.0008:
+                self.ascending_frames += 1
+            else:
+                self.ascending_frames = 0
+
+            if self.ascending_frames >= self.phase_confirm_frames:
+                self.phase = "ASCENDING"
+                self.ascent_start_time = now
+
+        elif self.phase == "ASCENDING":
+            if (
+                smooth_descent
+                < self.standing_threshold
+            ):
+                self.standing_frames += 1
+            else:
+                self.standing_frames = 0
+
+            if (
+                self.standing_frames
+                >= self.standing_confirm_frames
+            ):
+                self.phase = "STANDING"
+                self.count += 1
+                rep_completed = True
+                rep_summary = self.complete_rep(
+                    now
+                )
+
+                self.descending_frames = 0
+                self.bottom_frames = 0
+                self.ascending_frames = 0
+                self.standing_frames = 0
+
+        if self.phase != "STANDING":
+            self.current_max_descent = max(
+                self.current_max_descent,
+                smooth_descent
+            )
+            self.current_max_head_shift = max(
+                self.current_max_head_shift,
+                smooth_head_shift
+            )
+            self.current_max_shoulder_tilt = max(
+                self.current_max_shoulder_tilt,
+                smooth_shoulder_tilt
+            )
+            self.current_max_center_shift = max(
+                self.current_max_center_shift,
+                smooth_center_shift
+            )
+            self.current_max_sync_error = max(
+                self.current_max_sync_error,
+                sync_error
+            )
+            self.current_min_knee_angle = min(
+                self.current_min_knee_angle,
+                average_knee_angle
+            )
+
+        phase_elapsed = 0.0
+        if self.rep_start_time is not None:
+            phase_elapsed = now - self.rep_start_time
 
         return {
-            "count":
-                self.count,
-
-            "stage":
-                self.stage,
-
-            "rep_completed":
-                rep_completed,
-
-            "shoulder_descent":
-                smooth_shoulder_descent,
-
-            "hip_descent":
-                smooth_hip_descent,
-
-            "average_knee_angle":
-                average_knee_angle,
-
-            "head_shift":
-                smooth_head_shift,
-
-            "shoulder_tilt":
-                smooth_shoulder_tilt
+            "count": self.count,
+            "stage": self.phase,
+            "phase": self.phase,
+            "rep_completed": rep_completed,
+            "rep_summary": rep_summary,
+            "shoulder_descent": smooth_shoulder_descent,
+            "hip_descent": smooth_hip_descent,
+            "combined_descent": smooth_descent,
+            "descent_velocity": smooth_velocity,
+            "average_knee_angle": average_knee_angle,
+            "head_shift": smooth_head_shift,
+            "shoulder_tilt": smooth_shoulder_tilt,
+            "center_shift": smooth_center_shift,
+            "shoulder_hip_sync": sync_error,
+            "rom": self.current_max_descent,
+            "phase_elapsed": phase_elapsed,
+            "last_rep": self.last_rep
         }
 
-    def reset(
-        self
-    ):
-        self.stage = "CALIBRATING"
+    def reset(self):
+        self.phase = "STANDING"
 
-        self.down_frames = 0
-
-        self.up_frames = 0
-
-        self.rep_started = False
+        self.descending_frames = 0
+        self.bottom_frames = 0
+        self.ascending_frames = 0
+        self.standing_frames = 0
 
         self.baseline_shoulder_y = None
-
         self.baseline_hip_y = None
-
         self.baseline_body_height = None
+        self.baseline_shoulder_x = None
 
-        self.shoulder_descent_buffer.clear()
-
-        self.hip_descent_buffer.clear()
-
+        self.shoulder_buffer.clear()
+        self.hip_buffer.clear()
+        self.combined_buffer.clear()
+        self.velocity_buffer.clear()
         self.head_shift_buffer.clear()
-
         self.shoulder_tilt_buffer.clear()
+        self.center_shift_buffer.clear()
+
+        self.previous_descent = 0.0
+        self.reset_rep_metrics()
