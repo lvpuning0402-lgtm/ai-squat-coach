@@ -212,7 +212,9 @@ class SessionReportExporter:
             "set_valid",
             "set_exclusion_reasons",
             "standard_profile",
+            "standard_scope",
             "standard_met",
+            "standard_score",
             "quality_score",
             "quality_label",
             "descent_time",
@@ -225,6 +227,10 @@ class SessionReportExporter:
             "max_trunk_lean",
             "trunk_rom_ratio",
             "max_head_forward",
+            "max_ascent_sync_error",
+            "max_depth_margin",
+            "depth_standard_met",
+            "ipf_depth_proxy_met",
             "max_head_shift",
             "max_shoulder_tilt",
             "max_center_shift",
@@ -279,8 +285,16 @@ class SessionReportExporter:
                     "standard_profile": rep.get(
                         "standard_profile"
                     ),
+                    "standard_scope": rep.get(
+                        "standard_scope"
+                    ),
                     "standard_met": rep.get(
                         "standard_met"
+                    ),
+                    "standard_score": self._safe_number(
+                        rep.get(
+                            "standard_score"
+                        )
                     ),
                     "quality_score": self._safe_number(
                         rep.get(
@@ -340,6 +354,22 @@ class SessionReportExporter:
                         rep.get(
                             "max_head_forward"
                         )
+                    ),
+                    "max_ascent_sync_error": self._safe_number(
+                        rep.get(
+                            "max_ascent_sync_error"
+                        )
+                    ),
+                    "max_depth_margin": self._safe_number(
+                        rep.get(
+                            "max_depth_margin"
+                        )
+                    ),
+                    "depth_standard_met": rep.get(
+                        "depth_standard_met"
+                    ),
+                    "ipf_depth_proxy_met": rep.get(
+                        "ipf_depth_proxy_met"
                     ),
                     "max_head_shift": self._safe_number(
                         rep.get(
