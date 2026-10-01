@@ -191,36 +191,103 @@ class SessionInsightBuilder:
         self,
         valid_reps
     ):
-        counter = Counter()
+        breakdown = {}
 
         for rep in valid_reps:
-            counter.update(
-                rep.get(
-                    "detail_warnings",
-                    []
-                )
+            checks = rep.get(
+                "detail_checks",
+                {}
             )
 
-        if not counter:
+            for warning in rep.get(
+                "detail_warnings",
+                []
+            ):
+                state = checks.get(
+                    warning,
+                    {}
+                ).get(
+                    "state",
+                    "WATCH"
+                )
+
+                if warning not in breakdown:
+                    breakdown[
+                        warning
+                    ] = {
+                        "watch": 0,
+                        "review": 0,
+                        "total": 0
+                    }
+
+                if state == "REVIEW":
+                    breakdown[
+                        warning
+                    ][
+                        "review"
+                    ] += 1
+                else:
+                    breakdown[
+                        warning
+                    ][
+                        "watch"
+                    ] += 1
+
+                breakdown[
+                    warning
+                ][
+                    "total"
+                ] += 1
+
+        if not breakdown:
             return (
                 "NONE",
                 0,
-                0.0
+                0.0,
+                "NONE"
             )
 
-        key, count = counter.most_common(
-            1
+        key, counts = sorted(
+            breakdown.items(),
+            key=lambda item: (
+                -item[
+                    1
+                ][
+                    "review"
+                ],
+                -item[
+                    1
+                ][
+                    "total"
+                ],
+                item[
+                    0
+                ]
+            )
         )[0]
+
+        severity = (
+            "REVIEW"
+            if counts[
+                "review"
+            ] > 0
+            else "WATCH"
+        )
 
         return (
             key,
-            count,
+            counts[
+                "total"
+            ],
             self._rate(
-                count,
+                counts[
+                    "total"
+                ],
                 len(
                     valid_reps
                 )
-            )
+            ),
+            severity
         )
 
     def build(
@@ -338,7 +405,8 @@ class SessionInsightBuilder:
         (
             detail_focus,
             detail_focus_count,
-            detail_focus_rate
+            detail_focus_rate,
+            detail_focus_severity
         ) = self._detail_focus(
             valid_reps
         )
@@ -425,7 +493,8 @@ class SessionInsightBuilder:
             )
             focus = (
                 f"硬性标准已通过，但 {detail_focus_count}/{total} 次动作"
-                f"出现“{detail_label}”细节提示。"
+                f"出现“{detail_label}”细节提示"
+                f"（{detail_focus_severity}）。"
             )
         else:
             focus = "当前没有反复出现的主要标准问题或细节提示。"
@@ -540,6 +609,7 @@ class SessionInsightBuilder:
             "main_issue_rate": issue_rate,
             "detail_focus": detail_focus,
             "detail_focus_rate": detail_focus_rate,
+            "detail_focus_severity": detail_focus_severity,
             "selected_focus": selected_focus,
             "standard_pass_rate": pass_rate,
             "metrics": {
