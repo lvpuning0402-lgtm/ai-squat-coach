@@ -70,6 +70,7 @@ class SessionInsightBuilder:
         "general_depth": "通用训练深度",
         "knee_tracking": "膝盖轨迹",
         "ascent_control": "起身协同",
+        "trunk_stability": "躯干稳定",
     }
 
     DETAIL_CUE_ZH = {
@@ -84,6 +85,7 @@ class SessionInsightBuilder:
         "general_depth": "下一组把髋部下沉到大腿接近平行或更低。",
         "knee_tracking": "下一组优先让膝盖始终跟随脚尖方向。",
         "ascent_control": "下一组起身时让肩部和髋部一起向上。",
+        "trunk_stability": "下一组保持躯干角度变化更平滑，避免阶段内突然前倒或突然抬胸。",
     }
 
     DETAIL_UI = {
@@ -98,6 +100,7 @@ class SessionInsightBuilder:
         "general_depth": "General depth",
         "knee_tracking": "Knee tracking",
         "ascent_control": "Ascent control",
+        "trunk_stability": "Trunk stability",
     }
 
     PHASE_TEXT_ZH = {
@@ -446,6 +449,35 @@ class SessionInsightBuilder:
             "score"
         )
 
+        top_deductions = summary.get(
+            "top_detail_deductions",
+            []
+        )
+        top_deduction = (
+            top_deductions[
+                0
+            ]
+            if top_deductions
+            else None
+        )
+
+        phase_deductions = summary.get(
+            "phase_deduction_summary",
+            {}
+        )
+        phase_reason = None
+
+        if phase_focus:
+            phase_items = phase_deductions.get(
+                phase_focus,
+                []
+            )
+
+            if phase_items:
+                phase_reason = phase_items[
+                    0
+                ]
+
         overview = (
             f"本组完成 {total} 次有效动作，"
             f"{pass_count} 次通过当前标准"
@@ -531,6 +563,26 @@ class SessionInsightBuilder:
                 f"出现“{detail_label}”细节提示"
                 f"（{detail_focus_severity}）。"
             )
+        elif (
+            top_deduction
+            and top_deduction.get(
+                "average_lost_points",
+                0.0
+            ) >= 0.5
+        ):
+            deduction_name = top_deduction.get(
+                "name",
+                "detail"
+            )
+            deduction_label = self.DETAIL_TEXT_ZH.get(
+                deduction_name,
+                deduction_name
+            )
+            focus = (
+                "当前没有反复出现的硬性问题，"
+                f"细节分的主要损失来自“{deduction_label}”，"
+                f"平均约 -{top_deduction.get('average_lost_points', 0.0):.1f} 分。"
+            )
         else:
             focus = "当前没有反复出现的主要标准问题或细节提示。"
 
@@ -547,6 +599,27 @@ class SessionInsightBuilder:
                 f" 分阶段看，{phase_label}平均分最低"
                 f"（{phase_focus_score:.1f}）。"
             )
+
+            if (
+                phase_reason
+                and phase_reason.get(
+                    "average_lost_points",
+                    0.0
+                ) >= 0.3
+            ):
+                reason_name = phase_reason.get(
+                    "name",
+                    "detail"
+                )
+                reason_label = self.DETAIL_TEXT_ZH.get(
+                    reason_name,
+                    reason_name
+                )
+
+                focus += (
+                    f" 该阶段主要扣分来自“{reason_label}”，"
+                    f"平均约 -{phase_reason.get('average_lost_points', 0.0):.1f} 分。"
+                )
 
         if main_issue != "NONE":
             selected_focus = main_issue
@@ -670,6 +743,22 @@ class SessionInsightBuilder:
                 )
             )
 
+        if phase_reason:
+            reason_name = phase_reason.get(
+                "name",
+                "detail"
+            )
+            ui_lines.append(
+                (
+                    "Why: "
+                    + self.DETAIL_UI.get(
+                        reason_name,
+                        reason_name
+                    )
+                    + f" -{phase_reason.get('average_lost_points', 0.0):.1f}"
+                )
+            )
+
         return {
             "headline": headline,
             "overview": overview,
@@ -688,6 +777,8 @@ class SessionInsightBuilder:
             "selected_focus": selected_focus,
             "phase_focus": phase_focus,
             "phase_focus_score": phase_focus_score,
+            "phase_reason": phase_reason,
+            "top_deduction": top_deduction,
             "standard_pass_rate": pass_rate,
             "metrics": {
                 "valid_reps": total,
