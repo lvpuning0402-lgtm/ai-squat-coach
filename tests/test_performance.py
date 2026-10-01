@@ -206,6 +206,98 @@ class SessionPerformanceAnalyzerTests(unittest.TestCase):
             "CONSISTENT"
         )
 
+    def test_deep_side_squat_does_not_use_fixed_trunk_angle_penalty(self):
+        analyzer = SessionPerformanceAnalyzer()
+
+        result = analyzer.analyze_rep({
+            "rep": 1,
+            "view": "SIDE",
+            "descent_time": 1.10,
+            "bottom_time": 0.10,
+            "ascent_time": 0.73,
+            "total_time": 1.93,
+            "rom_degrees": 118.0,
+            "min_knee_angle": 62.0,
+            "min_hip_angle": 43.0,
+            "max_trunk_lean": 34.0,
+            "max_head_forward": 0.34,
+            "max_sync_error": 0.32
+        })
+
+        self.assertNotIn(
+            "TRUNK",
+            result["issues"]
+        )
+        self.assertLess(
+            result["trunk_rom_ratio"],
+            0.40
+        )
+        self.assertGreaterEqual(
+            result["component_scores"]["trunk"],
+            95.0
+        )
+
+    def test_relative_front_rom_outlier_is_excluded_from_set(self):
+        analyzer = SessionPerformanceAnalyzer()
+
+        samples = [
+            (3.33, 0.129),
+            (1.47, 0.485),
+            (2.13, 0.476),
+            (1.92, 0.471),
+            (1.71, 0.450),
+            (1.90, 0.495),
+            (1.64, 0.468)
+        ]
+
+        for index, (
+            total_time,
+            rom
+        ) in enumerate(
+            samples,
+            start=1
+        ):
+            analyzer.analyze_rep({
+                "rep": index,
+                "view": "FRONT",
+                "total_time": total_time,
+                "descent_time": 1.0,
+                "bottom_time": 0.1,
+                "ascent_time": 0.6,
+                "rom": rom,
+                "max_head_shift": 0.07,
+                "max_shoulder_tilt": 0.09,
+                "max_center_shift": 0.06,
+                "max_sync_error": 0.14,
+                "max_left_inward": 0.0,
+                "max_right_inward": 0.0,
+                "max_symmetry_value": 0.16
+            })
+
+        summary = analyzer.get_set_summary()
+
+        self.assertEqual(
+            summary["reps"],
+            7
+        )
+        self.assertEqual(
+            summary["valid_reps"],
+            6
+        )
+        self.assertEqual(
+            summary["relative_excluded_reps"],
+            1
+        )
+        self.assertFalse(
+            analyzer.reps[0]["set_valid"]
+        )
+        self.assertIn(
+            "SET_ROM_OUTLIER",
+            analyzer.reps[0][
+                "set_exclusion_reasons"
+            ]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
