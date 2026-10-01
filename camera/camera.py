@@ -128,6 +128,39 @@ def format_time(value):
     return f"{value:.2f}s"
 
 
+def format_phase_scores(
+    phase_scores
+):
+    values = []
+
+    for phase in (
+        "descent",
+        "bottom",
+        "ascent",
+    ):
+        value = phase_scores.get(
+            phase
+        )
+
+        if isinstance(
+            value,
+            dict
+        ):
+            value = value.get(
+                "score"
+            )
+
+        values.append(
+            f"{float(value):.1f}"
+            if value is not None
+            else "--"
+        )
+
+    return " / ".join(
+        values
+    )
+
+
 def format_change(
     value,
     suffix=""
@@ -689,6 +722,15 @@ def build_session_summary_frame(
             f"REVIEW {summary.get('detail_review_events', 0)}"
         ),
         (
+            "Phase D/B/A: "
+            + format_phase_scores(
+                summary.get(
+                    "phase_score_averages",
+                    {}
+                )
+            )
+        ),
+        (
             f"Best rep: #"
             f"{summary.get('best_rep') or '--'}"
         ),
@@ -759,6 +801,19 @@ def build_session_summary_frame(
             )
         )
 
+    weakest_phase = summary.get(
+        "weakest_phase"
+    )
+
+    if weakest_phase:
+        result_lines.append(
+            (
+                "Weak phase: "
+                f"{str(weakest_phase.get('phase', '--')).upper()} "
+                f"{weakest_phase.get('score', 0.0):.1f}"
+            )
+        )
+
     if session_type == "TRAINING":
         result_lines.extend([
             (
@@ -801,6 +856,17 @@ def build_session_summary_frame(
             f"{coach_feedback.get('confidence', 'LOW')}"
         ),
     ]
+
+    if coach_feedback.get(
+        "phase_focus"
+    ):
+        coach_lines.append(
+            (
+                "Phase focus: "
+                f"{str(coach_feedback['phase_focus']).upper()} "
+                f"{coach_feedback.get('phase_focus_score', 0.0):.1f}"
+            )
+        )
 
     top_details = summary.get(
         "top_detail_warnings",
@@ -1113,6 +1179,15 @@ def draw_interface(
                 f"Standard: {summary['standard_passes']}/"
                 f"{summary['valid_reps']} pass "
                 f"({summary['standard_pass_rate']:.0f}%)"
+            ),
+            (
+                "Phase D/B/A: "
+                + format_phase_scores(
+                    summary.get(
+                        "phase_score_averages",
+                        {}
+                    )
+                )
             )
         ]
 
@@ -1187,6 +1262,15 @@ def draw_interface(
                 f"{last_completed_rep.get('detail_score', 0.0):.1f}  "
                 f"{last_completed_rep.get('detail_grade', 'N/A')}  "
                 f"{last_completed_rep.get('detail_label', 'INFO')}"
+            ),
+            (
+                "Phase score D/B/A: "
+                + format_phase_scores(
+                    last_completed_rep.get(
+                        "phase_scores",
+                        {}
+                    )
+                )
             ),
             (
                 f"D/B/U: "
