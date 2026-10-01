@@ -850,6 +850,13 @@ class SessionPerformanceAnalyzer:
                 "weighted_components",
                 {}
             ),
+            "phase_scores": detail_result.get(
+                "phase_scores",
+                {}
+            ),
+            "weakest_phase": detail_result.get(
+                "weakest_phase"
+            ),
             "detail_checks": detail_result[
                 "checks"
             ],
@@ -906,6 +913,8 @@ class SessionPerformanceAnalyzer:
                 "average_front_physique_score": None,
                 "average_side_ipf_score": None,
                 "detail_component_averages": {},
+                "phase_score_averages": {},
+                "weakest_phase": None,
                 "detail_watch_reps": 0,
                 "detail_watch_rate": 0.0,
                 "detail_watch_events": 0,
@@ -949,6 +958,8 @@ class SessionPerformanceAnalyzer:
                 "average_front_physique_score": None,
                 "average_side_ipf_score": None,
                 "detail_component_averages": {},
+                "phase_score_averages": {},
+                "weakest_phase": None,
                 "detail_watch_reps": 0,
                 "detail_watch_rate": 0.0,
                 "detail_watch_events": 0,
@@ -1150,6 +1161,69 @@ class SessionPerformanceAnalyzer:
             in detail_component_values.items()
             if values
         }
+
+        phase_score_values = {
+            "descent": [],
+            "bottom": [],
+            "ascent": [],
+        }
+
+        for rep in valid_reps:
+            for phase, phase_data in rep.get(
+                "phase_scores",
+                {}
+            ).items():
+                score = phase_data.get(
+                    "score"
+                )
+
+                if (
+                    phase in phase_score_values
+                    and score is not None
+                ):
+                    phase_score_values[
+                        phase
+                    ].append(
+                        float(
+                            score
+                        )
+                    )
+
+        phase_score_averages = {
+            phase: round(
+                mean(
+                    values
+                ),
+                1
+            )
+            for phase, values
+            in phase_score_values.items()
+            if values
+        }
+
+        weakest_phase = (
+            min(
+                phase_score_averages.items(),
+                key=lambda item: item[
+                    1
+                ]
+            )
+            if phase_score_averages
+            else None
+        )
+
+        weakest_phase_summary = (
+            {
+                "phase": weakest_phase[
+                    0
+                ],
+                "score": weakest_phase[
+                    1
+                ],
+            }
+            if weakest_phase is not None
+            else None
+        )
 
         detail_watch_reps = sum(
             1
@@ -1480,6 +1554,8 @@ class SessionPerformanceAnalyzer:
                 else None
             ),
             "detail_component_averages": detail_component_averages,
+            "phase_score_averages": phase_score_averages,
+            "weakest_phase": weakest_phase_summary,
             "detail_watch_reps": detail_watch_reps,
             "detail_watch_rate": round(
                 detail_watch_rate,
