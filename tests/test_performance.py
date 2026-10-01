@@ -424,6 +424,54 @@ class SessionPerformanceAnalyzerTests(unittest.TestCase):
             result["standard_checks"]
         )
 
+    def test_set_summary_reports_standard_pass_rate(self):
+        analyzer = SessionPerformanceAnalyzer()
+
+        samples = [
+            True,
+            True,
+            False,
+            False
+        ]
+
+        for index, depth_ok in enumerate(
+            samples,
+            start=1
+        ):
+            analyzer.analyze_rep({
+                "rep": index,
+                "view": "SIDE",
+                "total_time": 2.0,
+                "min_knee_angle": 80.0,
+                "rom_degrees": 100.0,
+                "max_trunk_lean": 30.0,
+                "max_head_forward": 0.25,
+                "max_sync_error": 0.35,
+                "max_ascent_sync_error": 0.05,
+                "max_depth_margin": (
+                    0.05
+                    if depth_ok
+                    else -0.10
+                ),
+                "depth_standard_met": depth_ok,
+                "ipf_depth_proxy_met": depth_ok
+            })
+
+        summary = analyzer.get_set_summary()
+
+        self.assertEqual(
+            summary["standard_passes"],
+            2
+        )
+        self.assertEqual(
+            summary["standard_pass_rate"],
+            50.0
+        )
+        self.assertEqual(
+            summary["top_issue"],
+            "DEPTH"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
