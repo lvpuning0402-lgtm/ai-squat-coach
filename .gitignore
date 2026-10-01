@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# Local training data and generated session reports
+data/*.db
+data/*.db-*
+reports/*.json
+reports/*.csv
