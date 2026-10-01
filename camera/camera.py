@@ -128,6 +128,35 @@ def format_time(value):
     return f"{value:.2f}s"
 
 
+def format_deduction(
+    deduction
+):
+    if not deduction:
+        return "--"
+
+    name = str(
+        deduction.get(
+            "name",
+            "detail"
+        )
+    ).replace(
+        "_",
+        " "
+    )
+
+    points = deduction.get(
+        "average_lost_points",
+        deduction.get(
+            "lost_points",
+            0.0
+        )
+    )
+
+    return (
+        f"{name} -{float(points):.1f}"
+    )
+
+
 def format_phase_scores(
     phase_scores
 ):
@@ -731,6 +760,20 @@ def build_session_summary_frame(
             )
         ),
         (
+            "Top deduction: "
+            + format_deduction(
+                (
+                    summary.get(
+                        "top_detail_deductions",
+                        []
+                    )
+                    or [
+                        None
+                    ]
+                )[0]
+            )
+        ),
+        (
             f"Best rep: #"
             f"{summary.get('best_rep') or '--'}"
         ),
@@ -865,6 +908,20 @@ def build_session_summary_frame(
                 "Phase focus: "
                 f"{str(coach_feedback['phase_focus']).upper()} "
                 f"{coach_feedback.get('phase_focus_score', 0.0):.1f}"
+            )
+        )
+
+    if coach_feedback.get(
+        "phase_reason"
+    ):
+        coach_lines.append(
+            (
+                "Why: "
+                + format_deduction(
+                    coach_feedback[
+                        "phase_reason"
+                    ]
+                )
             )
         )
 
@@ -1188,6 +1245,20 @@ def draw_interface(
                         {}
                     )
                 )
+            ),
+            (
+                "Top deduction: "
+                + format_deduction(
+                    (
+                        summary.get(
+                            "top_detail_deductions",
+                            []
+                        )
+                        or [
+                            None
+                        ]
+                    )[0]
+                )
             )
         ]
 
@@ -1270,6 +1341,20 @@ def draw_interface(
                         "phase_scores",
                         {}
                     )
+                )
+            ),
+            (
+                "Main deduction: "
+                + format_deduction(
+                    (
+                        last_completed_rep.get(
+                            "detail_deductions",
+                            []
+                        )
+                        or [
+                            None
+                        ]
+                    )[0]
                 )
             ),
             (
