@@ -207,6 +207,8 @@ class SessionReportExporter:
         fieldnames = [
             "rep",
             "view",
+            "analysis_valid",
+            "confidence_reasons",
             "quality_score",
             "quality_label",
             "descent_time",
@@ -248,6 +250,16 @@ class SessionReportExporter:
                     ),
                     "view": rep.get(
                         "view"
+                    ),
+                    "analysis_valid": rep.get(
+                        "analysis_valid",
+                        True
+                    ),
+                    "confidence_reasons": "|".join(
+                        rep.get(
+                            "confidence_reasons",
+                            []
+                        )
                     ),
                     "quality_score": self._safe_number(
                         rep.get(
