@@ -470,6 +470,99 @@ class TrainingHistoryTests(unittest.TestCase):
                 "TEST"
             )
 
+    def test_obvious_legacy_outlier_is_excluded(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database = TrainingDatabase(
+                Path(
+                    temp_dir
+                )
+                / "training.db"
+            )
+
+            session_id = database.start_session(
+                session_type="TRAINING"
+            )
+
+            for rep_number in range(
+                1,
+                4
+            ):
+                rep = self.build_rep(
+                    rep_number,
+                    90.0,
+                    "FRONT",
+                    []
+                )
+
+                rep["max_center_shift"] = 0.05
+                rep["max_sync_error"] = 0.10
+                rep["max_left_inward"] = 0.0
+                rep["max_right_inward"] = 0.0
+
+                database.save_performance_rep(
+                    session_id,
+                    rep
+                )
+
+            corrupted = self.build_rep(
+                4,
+                50.0,
+                "FRONT",
+                [
+                    "CENTER"
+                ]
+            )
+            corrupted[
+                "total_time"
+            ] = 100.0
+            corrupted[
+                "max_center_shift"
+            ] = 1.10
+            corrupted[
+                "max_sync_error"
+            ] = 0.20
+            corrupted[
+                "max_left_inward"
+            ] = 0.30
+            corrupted[
+                "max_right_inward"
+            ] = 0.40
+
+            database.save_performance_rep(
+                session_id,
+                corrupted
+            )
+
+            database.finish_session(
+                session_id,
+                4,
+                4,
+                3
+            )
+
+            history = database.get_training_history(
+                limit=10
+            )
+
+            self.assertEqual(
+                history[0][
+                    "reps"
+                ],
+                3
+            )
+            self.assertEqual(
+                history[0][
+                    "excluded_reps"
+                ],
+                1
+            )
+            self.assertEqual(
+                history[0][
+                    "average_score"
+                ],
+                90.0
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
