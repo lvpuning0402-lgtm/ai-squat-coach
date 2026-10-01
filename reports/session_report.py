@@ -209,6 +209,8 @@ class SessionReportExporter:
             "view",
             "analysis_valid",
             "confidence_reasons",
+            "set_valid",
+            "set_exclusion_reasons",
             "quality_score",
             "quality_label",
             "descent_time",
@@ -219,6 +221,7 @@ class SessionReportExporter:
             "min_knee_angle",
             "min_hip_angle",
             "max_trunk_lean",
+            "trunk_rom_ratio",
             "max_head_forward",
             "max_head_shift",
             "max_shoulder_tilt",
@@ -258,6 +261,16 @@ class SessionReportExporter:
                     "confidence_reasons": "|".join(
                         rep.get(
                             "confidence_reasons",
+                            []
+                        )
+                    ),
+                    "set_valid": rep.get(
+                        "set_valid",
+                        True
+                    ),
+                    "set_exclusion_reasons": "|".join(
+                        rep.get(
+                            "set_exclusion_reasons",
                             []
                         )
                     ),
@@ -308,6 +321,11 @@ class SessionReportExporter:
                     "max_trunk_lean": self._safe_number(
                         rep.get(
                             "max_trunk_lean"
+                        )
+                    ),
+                    "trunk_rom_ratio": self._safe_number(
+                        rep.get(
+                            "trunk_rom_ratio"
                         )
                     ),
                     "max_head_forward": self._safe_number(
