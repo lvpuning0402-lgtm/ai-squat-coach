@@ -850,6 +850,10 @@ class SessionPerformanceAnalyzer:
                 "weighted_components",
                 {}
             ),
+            "detail_deductions": detail_result.get(
+                "detail_deductions",
+                []
+            ),
             "phase_scores": detail_result.get(
                 "phase_scores",
                 {}
@@ -913,7 +917,9 @@ class SessionPerformanceAnalyzer:
                 "average_front_physique_score": None,
                 "average_side_ipf_score": None,
                 "detail_component_averages": {},
+                "top_detail_deductions": [],
                 "phase_score_averages": {},
+                "phase_deduction_summary": {},
                 "weakest_phase": None,
                 "detail_watch_reps": 0,
                 "detail_watch_rate": 0.0,
@@ -958,7 +964,9 @@ class SessionPerformanceAnalyzer:
                 "average_front_physique_score": None,
                 "average_side_ipf_score": None,
                 "detail_component_averages": {},
+                "top_detail_deductions": [],
                 "phase_score_averages": {},
+                "phase_deduction_summary": {},
                 "weakest_phase": None,
                 "detail_watch_reps": 0,
                 "detail_watch_rate": 0.0,
@@ -1162,6 +1170,97 @@ class SessionPerformanceAnalyzer:
             if values
         }
 
+        detail_deduction_stats = {}
+
+        for rep in valid_reps:
+            seen_in_rep = set()
+
+            for deduction in rep.get(
+                "detail_deductions",
+                []
+            ):
+                name = deduction.get(
+                    "name"
+                )
+                lost_points = float(
+                    deduction.get(
+                        "lost_points",
+                        0.0
+                    )
+                )
+
+                if not name:
+                    continue
+
+                stats = detail_deduction_stats.setdefault(
+                    name,
+                    {
+                        "total_lost_points": 0.0,
+                        "occurrences": 0,
+                        "affected_reps": 0,
+                    }
+                )
+
+                stats[
+                    "total_lost_points"
+                ] += lost_points
+                stats[
+                    "occurrences"
+                ] += 1
+
+                if (
+                    lost_points > 0.1
+                    and name not in seen_in_rep
+                ):
+                    stats[
+                        "affected_reps"
+                    ] += 1
+                    seen_in_rep.add(
+                        name
+                    )
+
+        top_detail_deductions = sorted(
+            (
+                {
+                    "name": name,
+                    "total_lost_points": round(
+                        stats[
+                            "total_lost_points"
+                        ],
+                        2
+                    ),
+                    "average_lost_points": round(
+                        stats[
+                            "total_lost_points"
+                        ]
+                        / max(
+                            stats[
+                                "occurrences"
+                            ],
+                            1
+                        ),
+                        2
+                    ),
+                    "affected_reps": stats[
+                        "affected_reps"
+                    ],
+                    "occurrences": stats[
+                        "occurrences"
+                    ],
+                }
+                for name, stats
+                in detail_deduction_stats.items()
+            ),
+            key=lambda item: (
+                -item[
+                    "total_lost_points"
+                ],
+                item[
+                    "name"
+                ]
+            )
+        )[:5]
+
         phase_score_values = {
             "descent": [],
             "bottom": [],
@@ -1200,6 +1299,105 @@ class SessionPerformanceAnalyzer:
             in phase_score_values.items()
             if values
         }
+
+        phase_deduction_stats = {
+            "descent": {},
+            "bottom": {},
+            "ascent": {},
+        }
+
+        for rep in valid_reps:
+            for phase, phase_data in rep.get(
+                "phase_scores",
+                {}
+            ).items():
+                if phase not in phase_deduction_stats:
+                    continue
+
+                for deduction in phase_data.get(
+                    "deductions",
+                    []
+                ):
+                    name = deduction.get(
+                        "name"
+                    )
+                    lost_points = float(
+                        deduction.get(
+                            "lost_points",
+                            0.0
+                        )
+                    )
+
+                    if not name:
+                        continue
+
+                    stats = phase_deduction_stats[
+                        phase
+                    ].setdefault(
+                        name,
+                        {
+                            "total_lost_points": 0.0,
+                            "occurrences": 0,
+                        }
+                    )
+
+                    stats[
+                        "total_lost_points"
+                    ] += lost_points
+                    stats[
+                        "occurrences"
+                    ] += 1
+
+        phase_deduction_summary = {}
+
+        for phase, components in phase_deduction_stats.items():
+            if not components:
+                continue
+
+            ranked = sorted(
+                (
+                    {
+                        "name": name,
+                        "total_lost_points": round(
+                            stats[
+                                "total_lost_points"
+                            ],
+                            2
+                        ),
+                        "average_lost_points": round(
+                            stats[
+                                "total_lost_points"
+                            ]
+                            / max(
+                                stats[
+                                    "occurrences"
+                                ],
+                                1
+                            ),
+                            2
+                        ),
+                        "occurrences": stats[
+                            "occurrences"
+                        ],
+                    }
+                    for name, stats
+                    in components.items()
+                ),
+                key=lambda item: (
+                    -item[
+                        "total_lost_points"
+                    ],
+                    item[
+                        "name"
+                    ]
+                )
+            )
+
+            phase_deduction_summary[
+                phase
+            ] = ranked[
+                :3
+            ]
 
         weakest_phase = (
             min(
@@ -1554,7 +1752,9 @@ class SessionPerformanceAnalyzer:
                 else None
             ),
             "detail_component_averages": detail_component_averages,
+            "top_detail_deductions": top_detail_deductions,
             "phase_score_averages": phase_score_averages,
+            "phase_deduction_summary": phase_deduction_summary,
             "weakest_phase": weakest_phase_summary,
             "detail_watch_reps": detail_watch_reps,
             "detail_watch_rate": round(
