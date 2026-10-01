@@ -187,8 +187,20 @@ class SessionReportExporter:
                 "top_detail_deductions",
                 []
             ),
+            "average_detail_coverage": summary.get(
+                "average_detail_coverage",
+                0.0
+            ),
             "phase_score_averages": summary.get(
                 "phase_score_averages",
+                {}
+            ),
+            "phase_coverage_averages": summary.get(
+                "phase_coverage_averages",
+                {}
+            ),
+            "phase_confidence_counts": summary.get(
+                "phase_confidence_counts",
                 {}
             ),
             "phase_deduction_summary": summary.get(
@@ -278,6 +290,8 @@ class SessionReportExporter:
             "detail_score",
             "detail_grade",
             "detail_label",
+            "detail_coverage",
+            "detail_confidence",
             "detail_warnings",
             "competition_flags",
             "physique_control_score",
@@ -287,6 +301,7 @@ class SessionReportExporter:
             "phase_ascent_score",
             "weakest_phase",
             "weakest_phase_score",
+            "weakest_phase_confidence",
             "top_deduction",
             "top_deduction_points",
             "weak_phase_reason",
@@ -396,6 +411,14 @@ class SessionReportExporter:
                     "detail_label": rep.get(
                         "detail_label"
                     ),
+                    "detail_coverage": self._safe_number(
+                        rep.get(
+                            "detail_coverage"
+                        )
+                    ),
+                    "detail_confidence": rep.get(
+                        "detail_confidence"
+                    ),
                     "detail_warnings": "|".join(
                         rep.get(
                             "detail_warnings",
@@ -479,6 +502,27 @@ class SessionReportExporter:
                             ) or {}
                         ).get(
                             "score"
+                        )
+                    ),
+                    "weakest_phase_confidence": (
+                        (
+                            rep.get(
+                                "phase_scores",
+                                {}
+                            ).get(
+                                (
+                                    rep.get(
+                                        "weakest_phase",
+                                        {}
+                                    )
+                                    or {}
+                                ).get(
+                                    "phase"
+                                ),
+                                {}
+                            )
+                        ).get(
+                            "confidence"
                         )
                     ),
                     "top_deduction": (
