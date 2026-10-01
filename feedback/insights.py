@@ -112,6 +112,18 @@ class SessionInsightBuilder:
         "ascent": "Ascent",
     }
 
+    PHASE_CUE_ZH = {
+        "descent": (
+            "下降阶段保持受控，优先减少左右偏移并让双腿同步屈曲。"
+        ),
+        "bottom": (
+            "最低点优先保持深度、骨盆和双腿稳定，再开始起身。"
+        ),
+        "ascent": (
+            "上升阶段让肩髋同步向上，同时保持膝盖轨迹并完整站直。"
+        ),
+    }
+
     @staticmethod
     def _valid_reps(
         reps
@@ -573,6 +585,17 @@ class SessionInsightBuilder:
             next_action = self.ISSUE_CUE_ZH[
                 "NONE"
             ]
+
+        if (
+            phase_focus
+            and phase_focus in self.PHASE_CUE_ZH
+        ):
+            next_action += (
+                " "
+                + self.PHASE_CUE_ZH[
+                    phase_focus
+                ]
+            )
 
         if session_type == "TEST":
             if main_issue != "NONE":
