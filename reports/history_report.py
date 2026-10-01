@@ -73,15 +73,19 @@ class HistoryReportExporter:
 
         fieldnames = [
             "session_id",
+            "session_type",
             "start_time",
             "end_time",
             "reps",
             "front_reps",
             "side_reps",
             "average_score",
+            "front_average_score",
+            "side_average_score",
             "good_rate",
             "average_total_time",
-            "top_issue"
+            "top_issue",
+            "issue_rates"
         ]
 
         with path.open(
@@ -97,12 +101,24 @@ class HistoryReportExporter:
             writer.writeheader()
 
             for session in history:
-                writer.writerow({
+                row = {
                     key: session.get(
                         key
                     )
                     for key in fieldnames
-                })
+                }
+
+                row["issue_rates"] = json.dumps(
+                    session.get(
+                        "issue_rates",
+                        {}
+                    ),
+                    ensure_ascii=False
+                )
+
+                writer.writerow(
+                    row
+                )
 
         return path
 
