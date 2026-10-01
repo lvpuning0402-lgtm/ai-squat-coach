@@ -1719,11 +1719,34 @@ def run_camera():
                                     phase_name,
                                     phase_values
                                 ) in feedback_phase_metrics.items():
-                                    merged_phase_metrics.setdefault(
-                                        phase_name,
-                                        {}
-                                    ).update(
-                                        phase_values
+                                    target_phase = (
+                                        merged_phase_metrics.setdefault(
+                                            phase_name,
+                                            {}
+                                        )
+                                    )
+
+                                    analyzer_samples = target_phase.get(
+                                        "samples",
+                                        0
+                                    )
+                                    feedback_samples = phase_values.get(
+                                        "samples",
+                                        0
+                                    )
+
+                                    target_phase.update({
+                                        key: value
+                                        for key, value
+                                        in phase_values.items()
+                                        if key != "samples"
+                                    })
+
+                                    target_phase[
+                                        "samples"
+                                    ] = max(
+                                        analyzer_samples,
+                                        feedback_samples
                                     )
 
                             rep_summary[
