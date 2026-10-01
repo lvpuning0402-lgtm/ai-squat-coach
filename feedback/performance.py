@@ -856,6 +856,11 @@ class SessionPerformanceAnalyzer:
                 "average_score": 0.0,
                 "standard_passes": 0,
                 "standard_pass_rate": 0.0,
+                "side_reps": 0,
+                "side_depth_passes": 0,
+                "side_depth_pass_rate": 0.0,
+                "side_ipf_proxy_passes": 0,
+                "side_ipf_proxy_rate": 0.0,
                 "best_rep": None,
                 "tempo_change": 0.0,
                 "quality_change": 0.0,
@@ -883,6 +888,11 @@ class SessionPerformanceAnalyzer:
                 "average_score": 0.0,
                 "standard_passes": 0,
                 "standard_pass_rate": 0.0,
+                "side_reps": 0,
+                "side_depth_passes": 0,
+                "side_depth_pass_rate": 0.0,
+                "side_ipf_proxy_passes": 0,
+                "side_ipf_proxy_rate": 0.0,
                 "best_rep": None,
                 "tempo_change": 0.0,
                 "quality_change": 0.0,
@@ -963,6 +973,52 @@ class SessionPerformanceAnalyzer:
                 valid_reps
             )
             * 100.0
+        )
+
+        side_reps = [
+            rep
+            for rep in valid_reps
+            if rep.get(
+                "view"
+            ) == "SIDE"
+        ]
+
+        side_depth_passes = sum(
+            1
+            for rep in side_reps
+            if rep.get(
+                "depth_standard_met",
+                False
+            )
+        )
+
+        side_ipf_proxy_passes = sum(
+            1
+            for rep in side_reps
+            if rep.get(
+                "ipf_depth_proxy_met",
+                False
+            )
+        )
+
+        side_depth_pass_rate = (
+            side_depth_passes
+            / len(
+                side_reps
+            )
+            * 100.0
+            if side_reps
+            else 0.0
+        )
+
+        side_ipf_proxy_rate = (
+            side_ipf_proxy_passes
+            / len(
+                side_reps
+            )
+            * 100.0
+            if side_reps
+            else 0.0
         )
 
         best_rep = max(
@@ -1094,6 +1150,19 @@ class SessionPerformanceAnalyzer:
             "standard_passes": standard_passes,
             "standard_pass_rate": round(
                 standard_pass_rate,
+                1
+            ),
+            "side_reps": len(
+                side_reps
+            ),
+            "side_depth_passes": side_depth_passes,
+            "side_depth_pass_rate": round(
+                side_depth_pass_rate,
+                1
+            ),
+            "side_ipf_proxy_passes": side_ipf_proxy_passes,
+            "side_ipf_proxy_rate": round(
+                side_ipf_proxy_rate,
                 1
             ),
             "best_rep": best_rep.get(
