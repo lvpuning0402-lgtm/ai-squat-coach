@@ -249,6 +249,37 @@ Each completed Rep stores:
 The set summary averages phase scores across valid Reps and identifies the
 lowest-scoring phase for the AI Coach.
 
+## Score explainability
+
+Every weighted component now records:
+
+- component score;
+- normalized weight;
+- maximum possible contribution;
+- actual contribution;
+- points lost from that component.
+
+The deduction calculation is:
+
+`lost_points = normalized_weight × (100 - component_score)`
+
+For example, a component weighted at 20% with a component score of 80
+contributes 16 points instead of a maximum 20, so the explainable deduction is
+4 points.
+
+The same calculation is applied to whole-Rep detail scoring and to
+descent/bottom/ascent phase scoring. The report ranks deductions so the coach
+can explain both:
+
+- **what** cost the most points;
+- **which phase** the loss happened in.
+
+Set summaries aggregate these deductions across valid Reps and expose the main
+detail deduction plus the main deduction inside the weakest phase.
+
+These values are **project score explanations**, not official IPF, IFBB or NPC
+penalty points.
+
 ## Detail states
 
 Secondary detail checks use three states:
