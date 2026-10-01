@@ -1,7 +1,9 @@
 import sqlite3
 import json
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from statistics import mean
 
 
 class TrainingDatabase:
@@ -530,3 +532,248 @@ class TrainingDatabase:
             ] = 0.0
 
         return result
+
+
+    def get_training_history(
+        self,
+        limit=10
+    ):
+        """
+        返回最近若干次有效训练的聚合历史。
+
+        只保留已经结束且至少有 1 次新版 performance rep 的 session。
+        """
+        sessions = self.get_recent_sessions(
+            max(
+                limit * 3,
+                limit
+            )
+        )
+
+        history = []
+
+        for session in sessions:
+            if session.get(
+                "end_time"
+            ) is None:
+                continue
+
+            reps = self.get_performance_reps(
+                session["id"]
+            )
+
+            if not reps:
+                continue
+
+            scores = [
+                rep["quality_score"]
+                for rep in reps
+                if rep.get(
+                    "quality_score"
+                ) is not None
+            ]
+
+            tempos = [
+                rep["total_time"]
+                for rep in reps
+                if (
+                    rep.get(
+                        "total_time"
+                    ) is not None
+                    and rep["total_time"] > 0
+                )
+            ]
+
+            view_counts = Counter(
+                rep.get(
+                    "view",
+                    "UNKNOWN"
+                )
+                for rep in reps
+            )
+
+            issue_counter = Counter()
+
+            for rep in reps:
+                issue_counter.update(
+                    rep.get(
+                        "issues",
+                        []
+                    )
+                )
+
+            average_score = (
+                round(
+                    mean(
+                        scores
+                    ),
+                    1
+                )
+                if scores
+                else 0.0
+            )
+
+            average_total_time = (
+                round(
+                    mean(
+                        tempos
+                    ),
+                    2
+                )
+                if tempos
+                else 0.0
+            )
+
+            top_issue = (
+                issue_counter.most_common(
+                    1
+                )[0][0]
+                if issue_counter
+                else "NONE"
+            )
+
+            history.append({
+                "session_id": session[
+                    "id"
+                ],
+                "start_time": session.get(
+                    "start_time"
+                ),
+                "end_time": session.get(
+                    "end_time"
+                ),
+                "reps": len(
+                    reps
+                ),
+                "front_reps": view_counts.get(
+                    "FRONT",
+                    0
+                ),
+                "side_reps": view_counts.get(
+                    "SIDE",
+                    0
+                ),
+                "average_score": average_score,
+                "good_rate": round(
+                    float(
+                        session.get(
+                            "good_rate",
+                            0.0
+                        )
+                        or 0.0
+                    ),
+                    1
+                ),
+                "average_total_time": average_total_time,
+                "top_issue": top_issue
+            })
+
+            if len(
+                history
+            ) >= limit:
+                break
+
+        return history
+
+    def get_progress_summary(
+        self,
+        limit=10
+    ):
+        """
+        汇总最近训练趋势。
+
+        只描述训练数据变化，不做医学判断。
+        """
+        history = self.get_training_history(
+            limit
+        )
+
+        if not history:
+            return {
+                "sessions": 0,
+                "latest_session_id": None,
+                "latest_average_score": 0.0,
+                "score_change": 0.0,
+                "latest_good_rate": 0.0,
+                "good_rate_change": 0.0,
+                "latest_top_issue": "NONE",
+                "trend": "NO DATA"
+            }
+
+        latest = history[
+            0
+        ]
+
+        if len(
+            history
+        ) == 1:
+            return {
+                "sessions": 1,
+                "latest_session_id": latest[
+                    "session_id"
+                ],
+                "latest_average_score": latest[
+                    "average_score"
+                ],
+                "score_change": 0.0,
+                "latest_good_rate": latest[
+                    "good_rate"
+                ],
+                "good_rate_change": 0.0,
+                "latest_top_issue": latest[
+                    "top_issue"
+                ],
+                "trend": "COLLECTING"
+            }
+
+        previous = history[
+            1
+        ]
+
+        score_change = round(
+            latest[
+                "average_score"
+            ]
+            - previous[
+                "average_score"
+            ],
+            1
+        )
+
+        good_rate_change = round(
+            latest[
+                "good_rate"
+            ]
+            - previous[
+                "good_rate"
+            ],
+            1
+        )
+
+        if score_change >= 5.0:
+            trend = "IMPROVING"
+        elif score_change <= -5.0:
+            trend = "DECLINING"
+        else:
+            trend = "STABLE"
+
+        return {
+            "sessions": len(
+                history
+            ),
+            "latest_session_id": latest[
+                "session_id"
+            ],
+            "latest_average_score": latest[
+                "average_score"
+            ],
+            "score_change": score_change,
+            "latest_good_rate": latest[
+                "good_rate"
+            ],
+            "good_rate_change": good_rate_change,
+            "latest_top_issue": latest[
+                "top_issue"
+            ],
+            "trend": trend
+        }
