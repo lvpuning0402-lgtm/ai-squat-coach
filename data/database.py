@@ -31,6 +31,28 @@ class TrainingDatabase:
 
         return connection
 
+    @staticmethod
+    def ensure_column(
+        cursor,
+        table_name,
+        column_name,
+        column_sql
+    ):
+        cursor.execute(
+            f"PRAGMA table_info({table_name})"
+        )
+
+        existing_columns = {
+            row[1]
+            for row in cursor.fetchall()
+        }
+
+        if column_name not in existing_columns:
+            cursor.execute(
+                f"ALTER TABLE {table_name} "
+                f"ADD COLUMN {column_name} {column_sql}"
+            )
+
     def create_tables(self):
         connection = self.connect()
         cursor = connection.cursor()
@@ -47,6 +69,23 @@ class TrainingDatabase:
                 good_rate REAL DEFAULT 0,
                 notes TEXT
             )
+            """
+        )
+
+        self.ensure_column(
+            cursor,
+            "sessions",
+            "session_type",
+            "TEXT NOT NULL DEFAULT 'TEST'"
+        )
+
+        # 旧数据全部视为测试/开发数据，避免污染正式训练趋势。
+        cursor.execute(
+            """
+            UPDATE sessions
+            SET session_type = 'TEST'
+            WHERE session_type IS NULL
+               OR session_type = ''
             """
         )
 
@@ -95,7 +134,10 @@ class TrainingDatabase:
         connection.commit()
         connection.close()
 
-    def start_session(self):
+    def start_session(
+        self,
+        session_type="TEST"
+    ):
         connection = self.connect()
         cursor = connection.cursor()
 
@@ -106,12 +148,14 @@ class TrainingDatabase:
         cursor.execute(
             """
             INSERT INTO sessions (
-                start_time
+                start_time,
+                session_type
             )
-            VALUES (?)
+            VALUES (?, ?)
             """,
             (
                 start_time,
+                session_type,
             )
         )
 
@@ -121,10 +165,34 @@ class TrainingDatabase:
         connection.close()
 
         print(
-            f"Training session started: {session_id}"
+            f"Training session started: "
+            f"{session_id} [{session_type}]"
         )
 
         return session_id
+
+    def set_session_type(
+        self,
+        session_id,
+        session_type
+    ):
+        connection = self.connect()
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            UPDATE sessions
+            SET session_type = ?
+            WHERE id = ?
+            """,
+            (
+                session_type,
+                session_id
+            )
+        )
+
+        connection.commit()
+        connection.close()
 
     def save_rep(
         self,
@@ -536,16 +604,20 @@ class TrainingDatabase:
 
     def get_training_history(
         self,
-        limit=10
+        limit=10,
+        session_type="TRAINING",
+        min_reps=3
     ):
         """
         返回最近若干次有效训练的聚合历史。
 
-        只保留已经结束且至少有 1 次新版 performance rep 的 session。
+        正式趋势默认只统计 TRAINING：
+        - TEST 不进入正式趋势
+        - 少于 min_reps 的 session 不进入正式趋势
         """
         sessions = self.get_recent_sessions(
             max(
-                limit * 3,
+                limit * 6,
                 limit
             )
         )
@@ -558,11 +630,22 @@ class TrainingDatabase:
             ) is None:
                 continue
 
+            if (
+                session_type is not None
+                and session.get(
+                    "session_type",
+                    "TEST"
+                ) != session_type
+            ):
+                continue
+
             reps = self.get_performance_reps(
                 session["id"]
             )
 
-            if not reps:
+            if len(
+                reps
+            ) < min_reps:
                 continue
 
             scores = [
@@ -584,6 +667,32 @@ class TrainingDatabase:
                 )
             ]
 
+            front_scores = [
+                rep["quality_score"]
+                for rep in reps
+                if (
+                    rep.get(
+                        "view"
+                    ) == "FRONT"
+                    and rep.get(
+                        "quality_score"
+                    ) is not None
+                )
+            ]
+
+            side_scores = [
+                rep["quality_score"]
+                for rep in reps
+                if (
+                    rep.get(
+                        "view"
+                    ) == "SIDE"
+                    and rep.get(
+                        "quality_score"
+                    ) is not None
+                )
+            ]
+
             view_counts = Counter(
                 rep.get(
                     "view",
@@ -601,6 +710,19 @@ class TrainingDatabase:
                         []
                     )
                 )
+
+            issue_rates = {
+                issue: round(
+                    count
+                    / len(
+                        reps
+                    )
+                    * 100.0,
+                    1
+                )
+                for issue, count
+                in issue_counter.items()
+            }
 
             average_score = (
                 round(
@@ -624,6 +746,28 @@ class TrainingDatabase:
                 else 0.0
             )
 
+            front_average_score = (
+                round(
+                    mean(
+                        front_scores
+                    ),
+                    1
+                )
+                if front_scores
+                else None
+            )
+
+            side_average_score = (
+                round(
+                    mean(
+                        side_scores
+                    ),
+                    1
+                )
+                if side_scores
+                else None
+            )
+
             top_issue = (
                 issue_counter.most_common(
                     1
@@ -636,6 +780,10 @@ class TrainingDatabase:
                 "session_id": session[
                     "id"
                 ],
+                "session_type": session.get(
+                    "session_type",
+                    "TEST"
+                ),
                 "start_time": session.get(
                     "start_time"
                 ),
@@ -654,6 +802,8 @@ class TrainingDatabase:
                     0
                 ),
                 "average_score": average_score,
+                "front_average_score": front_average_score,
+                "side_average_score": side_average_score,
                 "good_rate": round(
                     float(
                         session.get(
@@ -665,7 +815,8 @@ class TrainingDatabase:
                     1
                 ),
                 "average_total_time": average_total_time,
-                "top_issue": top_issue
+                "top_issue": top_issue,
+                "issue_rates": issue_rates
             })
 
             if len(
@@ -675,87 +826,260 @@ class TrainingDatabase:
 
         return history
 
+    @staticmethod
+    def _trend_from_change(
+        change
+    ):
+        if change is None:
+            return "COLLECTING"
+
+        if change >= 5.0:
+            return "IMPROVING"
+
+        if change <= -5.0:
+            return "DECLINING"
+
+        return "STABLE"
+
     def get_progress_summary(
         self,
-        limit=10
+        limit=10,
+        baseline_sessions=3,
+        min_reps=3
     ):
         """
-        汇总最近训练趋势。
+        汇总正式训练趋势。
 
-        只描述训练数据变化，不做医学判断。
+        与最近 1 场相比过于敏感，因此改为：
+        - 最新正式训练
+        - 对比之前最多 baseline_sessions 场正式训练均值
+        - FRONT / SIDE 分开计算
+        - 少量 Rep 不参与正式趋势
         """
         history = self.get_training_history(
-            limit
+            limit=limit,
+            session_type="TRAINING",
+            min_reps=min_reps
         )
+
+        empty_view = {
+            "latest_score": None,
+            "baseline_score": None,
+            "score_change": None,
+            "trend": "NO DATA",
+            "latest_reps": 0,
+            "baseline_sessions": 0
+        }
 
         if not history:
             return {
                 "sessions": 0,
                 "latest_session_id": None,
                 "latest_average_score": 0.0,
-                "score_change": 0.0,
+                "baseline_average_score": None,
+                "score_change": None,
                 "latest_good_rate": 0.0,
-                "good_rate_change": 0.0,
+                "baseline_good_rate": None,
+                "good_rate_change": None,
                 "latest_top_issue": "NONE",
-                "trend": "NO DATA"
+                "latest_top_issue_rate": 0.0,
+                "issue_rate_change": None,
+                "trend": "NO DATA",
+                "front": dict(
+                    empty_view
+                ),
+                "side": dict(
+                    empty_view
+                )
             }
 
         latest = history[
             0
         ]
 
-        if len(
-            history
-        ) == 1:
-            return {
-                "sessions": 1,
-                "latest_session_id": latest[
-                    "session_id"
-                ],
-                "latest_average_score": latest[
-                    "average_score"
-                ],
-                "score_change": 0.0,
-                "latest_good_rate": latest[
-                    "good_rate"
-                ],
-                "good_rate_change": 0.0,
-                "latest_top_issue": latest[
-                    "top_issue"
-                ],
-                "trend": "COLLECTING"
-            }
-
-        previous = history[
-            1
+        baseline = history[
+            1:
+            1 + baseline_sessions
         ]
 
-        score_change = round(
-            latest[
-                "average_score"
-            ]
-            - previous[
-                "average_score"
-            ],
-            1
+        baseline_average_score = (
+            round(
+                mean(
+                    item[
+                        "average_score"
+                    ]
+                    for item in baseline
+                ),
+                1
+            )
+            if baseline
+            else None
         )
 
-        good_rate_change = round(
-            latest[
-                "good_rate"
-            ]
-            - previous[
-                "good_rate"
-            ],
-            1
+        baseline_good_rate = (
+            round(
+                mean(
+                    item[
+                        "good_rate"
+                    ]
+                    for item in baseline
+                ),
+                1
+            )
+            if baseline
+            else None
         )
 
-        if score_change >= 5.0:
-            trend = "IMPROVING"
-        elif score_change <= -5.0:
-            trend = "DECLINING"
+        score_change = (
+            round(
+                latest[
+                    "average_score"
+                ]
+                - baseline_average_score,
+                1
+            )
+            if baseline_average_score is not None
+            else None
+        )
+
+        good_rate_change = (
+            round(
+                latest[
+                    "good_rate"
+                ]
+                - baseline_good_rate,
+                1
+            )
+            if baseline_good_rate is not None
+            else None
+        )
+
+        latest_top_issue = latest[
+            "top_issue"
+        ]
+
+        latest_top_issue_rate = (
+            latest[
+                "issue_rates"
+            ].get(
+                latest_top_issue,
+                0.0
+            )
+            if latest_top_issue != "NONE"
+            else 0.0
+        )
+
+        if (
+            latest_top_issue != "NONE"
+            and baseline
+        ):
+            baseline_issue_rate = mean(
+                item[
+                    "issue_rates"
+                ].get(
+                    latest_top_issue,
+                    0.0
+                )
+                for item in baseline
+            )
+
+            issue_rate_change = round(
+                latest_top_issue_rate
+                - baseline_issue_rate,
+                1
+            )
         else:
-            trend = "STABLE"
+            issue_rate_change = None
+
+        def build_view_progress(
+            view_name,
+            score_key,
+            reps_key
+        ):
+            latest_score = latest.get(
+                score_key
+            )
+            latest_reps = latest.get(
+                reps_key,
+                0
+            )
+
+            if (
+                latest_score is None
+                or latest_reps < 2
+            ):
+                return {
+                    "latest_score": latest_score,
+                    "baseline_score": None,
+                    "score_change": None,
+                    "trend": "INSUFFICIENT",
+                    "latest_reps": latest_reps,
+                    "baseline_sessions": 0
+                }
+
+            baseline_scores = [
+                item[
+                    score_key
+                ]
+                for item in baseline
+                if (
+                    item.get(
+                        score_key
+                    ) is not None
+                    and item.get(
+                        reps_key,
+                        0
+                    ) >= 2
+                )
+            ]
+
+            if not baseline_scores:
+                return {
+                    "latest_score": latest_score,
+                    "baseline_score": None,
+                    "score_change": None,
+                    "trend": "COLLECTING",
+                    "latest_reps": latest_reps,
+                    "baseline_sessions": 0
+                }
+
+            baseline_score = round(
+                mean(
+                    baseline_scores
+                ),
+                1
+            )
+
+            change = round(
+                latest_score
+                - baseline_score,
+                1
+            )
+
+            return {
+                "latest_score": latest_score,
+                "baseline_score": baseline_score,
+                "score_change": change,
+                "trend": self._trend_from_change(
+                    change
+                ),
+                "latest_reps": latest_reps,
+                "baseline_sessions": len(
+                    baseline_scores
+                )
+            }
+
+        front_progress = build_view_progress(
+            "FRONT",
+            "front_average_score",
+            "front_reps"
+        )
+
+        side_progress = build_view_progress(
+            "SIDE",
+            "side_average_score",
+            "side_reps"
+        )
 
         return {
             "sessions": len(
@@ -767,13 +1091,19 @@ class TrainingDatabase:
             "latest_average_score": latest[
                 "average_score"
             ],
+            "baseline_average_score": baseline_average_score,
             "score_change": score_change,
             "latest_good_rate": latest[
                 "good_rate"
             ],
+            "baseline_good_rate": baseline_good_rate,
             "good_rate_change": good_rate_change,
-            "latest_top_issue": latest[
-                "top_issue"
-            ],
-            "trend": trend
+            "latest_top_issue": latest_top_issue,
+            "latest_top_issue_rate": latest_top_issue_rate,
+            "issue_rate_change": issue_rate_change,
+            "trend": self._trend_from_change(
+                score_change
+            ),
+            "front": front_progress,
+            "side": side_progress
         }
