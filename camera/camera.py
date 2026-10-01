@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 
 from pose.detector import PoseDetector
 from pose.view_detector import ViewDetector
@@ -10,6 +11,9 @@ from feedback.front_feedback import FrontFeedback
 from feedback.performance import SessionPerformanceAnalyzer
 
 from data.database import TrainingDatabase
+
+
+PANEL_WIDTH = 460
 
 
 def get_position_hint(
@@ -52,83 +56,138 @@ def format_time(value):
     return f"{value:.2f}s"
 
 
-def draw_lines(
+def make_dashboard(
     frame,
-    lines,
-    x=25,
-    y=35,
-    font_scale=0.50,
-    step=28
+    panel_width=PANEL_WIDTH
 ):
-    for line in lines:
-        cv2.putText(
+    height = frame.shape[0]
+
+    panel = np.zeros(
+        (
+            height,
+            panel_width,
+            3
+        ),
+        dtype=np.uint8
+    )
+
+    dashboard = np.hstack(
+        [
             frame,
-            str(line),
-            (
-                x,
-                y
-            ),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            font_scale,
-            (
-                255,
-                255,
-                255
-            ),
-            2
-        )
+            panel
+        ]
+    )
 
-        y += step
+    return dashboard
 
 
-def draw_set_panel(
-    frame,
-    performance,
+def draw_text(
+    image,
+    text,
+    x,
+    y,
+    scale=0.52,
+    thickness=1
+):
+    cv2.putText(
+        image,
+        str(text),
+        (
+            x,
+            y
+        ),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        scale,
+        (
+            235,
+            235,
+            235
+        ),
+        thickness,
+        cv2.LINE_AA
+    )
+
+
+def draw_title(
+    image,
+    text,
+    x,
+    y
+):
+    draw_text(
+        image,
+        text,
+        x,
+        y,
+        scale=0.66,
+        thickness=2
+    )
+
+
+def draw_divider(
+    image,
+    x1,
+    x2,
+    y
+):
+    cv2.line(
+        image,
+        (
+            x1,
+            y
+        ),
+        (
+            x2,
+            y
+        ),
+        (
+            75,
+            75,
+            75
+        ),
+        1
+    )
+
+
+def draw_section(
+    image,
+    title,
+    lines,
+    x,
+    y,
     width
 ):
-    summary = performance.get_set_summary()
+    draw_title(
+        image,
+        title,
+        x,
+        y
+    )
 
-    if summary["reps"] == 0:
-        return
+    y += 18
 
-    lines = [
-        "SET SUMMARY",
-        f"Reps: {summary['reps']}",
-        (
-            f"Avg quality: "
-            f"{summary['average_score']:.1f}"
-        ),
-        (
-            f"Best rep: "
-            f"{summary['best_rep']}"
-        ),
-        (
-            f"Quality trend: "
-            f"{summary['quality_change']:+.1f}"
-        ),
-        (
-            f"Tempo trend: "
-            f"{summary['tempo_change']:+.1f}%"
-        ),
-        (
-            f"Movement trend: "
-            f"{summary['trend']}"
+    draw_divider(
+        image,
+        x,
+        x + width - 25,
+        y
+    )
+
+    y += 24
+
+    for line in lines:
+        draw_text(
+            image,
+            line,
+            x,
+            y,
+            scale=0.50,
+            thickness=1
         )
-    ]
 
-    panel_x = max(
-        25,
-        width - 360
-    )
+        y += 27
 
-    draw_lines(
-        frame,
-        lines,
-        x=panel_x,
-        y=35,
-        font_scale=0.48,
-        step=28
-    )
+    return y + 8
 
 
 def prepare_performance_rep(
@@ -142,7 +201,6 @@ def prepare_performance_rep(
         rep_summary
     )
 
-    # 使用整次训练统一编号。
     rep_data["rep"] = (
         len(performance.reps)
         + 1
@@ -190,6 +248,150 @@ def save_completed_rep(
     return analyzed
 
 
+def draw_dashboard(
+    dashboard,
+    camera_width,
+    view,
+    raw_view,
+    view_ratio,
+    position,
+    mode_lines,
+    form_lines,
+    last_completed_rep,
+    performance,
+    show_debug
+):
+    panel_x = camera_width + 22
+    panel_inner_width = PANEL_WIDTH - 36
+
+    y = 36
+
+    draw_title(
+        dashboard,
+        "AI SPORT COACH",
+        panel_x,
+        y
+    )
+
+    y += 34
+
+    draw_text(
+        dashboard,
+        f"{view}  |  {position}",
+        panel_x,
+        y,
+        scale=0.52,
+        thickness=1
+    )
+
+    y += 24
+
+    if show_debug:
+        draw_text(
+            dashboard,
+            (
+                f"Raw {raw_view} | "
+                f"View ratio {view_ratio:.2f}"
+            ),
+            panel_x,
+            y,
+            scale=0.43,
+            thickness=1
+        )
+        y += 22
+
+    y += 8
+
+    y = draw_section(
+        dashboard,
+        "LIVE",
+        mode_lines,
+        panel_x,
+        y,
+        panel_inner_width
+    )
+
+    y = draw_section(
+        dashboard,
+        "FORM",
+        form_lines,
+        panel_x,
+        y,
+        panel_inner_width
+    )
+
+    if last_completed_rep:
+        last_rep_lines = [
+            (
+                f"Rep #{last_completed_rep['rep']}  "
+                f"{last_completed_rep['view']}"
+            ),
+            (
+                f"Quality: "
+                f"{last_completed_rep['quality_score']:.1f}  "
+                f"{last_completed_rep['quality_label']}"
+            ),
+            (
+                f"Tempo D/B/U: "
+                f"{format_time(last_completed_rep.get('descent_time'))} / "
+                f"{format_time(last_completed_rep.get('bottom_time'))} / "
+                f"{format_time(last_completed_rep.get('ascent_time'))}"
+            ),
+            (
+                f"Total: "
+                f"{format_time(last_completed_rep.get('total_time'))}"
+            )
+        ]
+
+        y = draw_section(
+            dashboard,
+            "LAST REP",
+            last_rep_lines,
+            panel_x,
+            y,
+            panel_inner_width
+        )
+
+    summary = performance.get_set_summary()
+
+    if summary["reps"] > 0:
+        set_lines = [
+            (
+                f"Reps: "
+                f"{summary['reps']}"
+            ),
+            (
+                f"Avg quality: "
+                f"{summary['average_score']:.1f}"
+            ),
+            (
+                f"Best rep: "
+                f"{summary['best_rep']}"
+            ),
+            (
+                f"Quality trend: "
+                f"{summary['quality_change']:+.1f}"
+            ),
+            (
+                f"Tempo trend: "
+                f"{summary['tempo_change']:+.1f}%"
+            ),
+            (
+                f"Movement: "
+                f"{summary['trend']}"
+            )
+        ]
+
+        draw_section(
+            dashboard,
+            "SET",
+            set_lines,
+            panel_x,
+            y,
+            panel_inner_width
+        )
+
+
 def run_camera():
     cap = cv2.VideoCapture(0)
 
@@ -222,6 +424,8 @@ def run_camera():
     active_leg = None
     last_completed_rep = None
 
+    show_debug = False
+
     print(
         "Multi-angle squat analysis enabled"
     )
@@ -235,6 +439,9 @@ def run_camera():
         f"Session ID: {session_id}"
     )
     print(
+        "按 D 切换调试信息"
+    )
+    print(
         "按 Q / ESC 退出"
     )
 
@@ -245,8 +452,8 @@ def run_camera():
             if not ret:
                 break
 
-            height = frame.shape[0]
-            width = frame.shape[1]
+            camera_height = frame.shape[0]
+            camera_width = frame.shape[1]
 
             frame, result = detector.detect(
                 frame
@@ -301,6 +508,19 @@ def run_camera():
                 right_ankle
             ])
 
+            view = "UNKNOWN"
+            raw_view = "UNKNOWN"
+            view_ratio = 0.0
+            position = "BODY NOT DETECTED"
+
+            mode_lines = [
+                "Waiting for body..."
+            ]
+
+            form_lines = [
+                "Keep full body visible"
+            ]
+
             if ready:
                 (
                     view,
@@ -311,8 +531,8 @@ def run_camera():
                     right_shoulder["point"],
                     left_hip["point"],
                     right_hip["point"],
-                    width,
-                    height,
+                    camera_width,
+                    camera_height,
                     freeze=False
                 )
 
@@ -384,8 +604,8 @@ def run_camera():
                             ],
                             0.15,
                             0.30,
-                            "HEAD OK",
-                            "HEAD SHIFT"
+                            "OK",
+                            "SHIFT"
                         )
 
                         shoulder_state = metric_state(
@@ -394,8 +614,8 @@ def run_camera():
                             ],
                             0.08,
                             0.16,
-                            "SHOULDERS OK",
-                            "SHOULDER TILT"
+                            "OK",
+                            "TILT"
                         )
 
                         center_state = metric_state(
@@ -404,8 +624,8 @@ def run_camera():
                             ],
                             0.15,
                             0.30,
-                            "CENTER OK",
-                            "CENTER SHIFT"
+                            "OK",
+                            "SHIFT"
                         )
 
                         sync_state = metric_state(
@@ -414,59 +634,54 @@ def run_camera():
                             ],
                             0.08,
                             0.18,
-                            "SYNC OK",
-                            "SYNC CHECK"
+                            "OK",
+                            "CHECK"
                         )
 
-                        lines = [
-                            "Mode: FRONT",
+                        mode_lines = [
                             (
-                                f"View count: "
-                                f"{front_result['count']}"
+                                f"Phase: "
+                                f"{front_result['phase']}"
                             ),
                             (
                                 f"Session reps: "
                                 f"{len(performance.reps)}"
                             ),
                             (
-                                f"Phase: "
-                                f"{front_result['phase']}"
-                            ),
-                            (
                                 f"ROM: "
                                 f"{front_result['rom']:.2f}"
                             ),
                             (
-                                f"Shoulder/Hip down: "
+                                f"Shoulder/Hip: "
                                 f"{front_result['shoulder_descent']:.2f} / "
                                 f"{front_result['hip_descent']:.2f}"
-                            ),
+                            )
+                        ]
+
+                        form_lines = [
                             (
                                 f"Head: "
                                 f"{front_result['head_shift']:.2f} "
-                                f"{head_state}"
+                                f"[{head_state}]"
                             ),
                             (
-                                f"Shoulder level: "
+                                f"Shoulders: "
                                 f"{front_result['shoulder_tilt']:.2f} "
-                                f"{shoulder_state}"
+                                f"[{shoulder_state}]"
                             ),
                             (
-                                f"Body center: "
+                                f"Center: "
                                 f"{front_result['center_shift']:.2f} "
-                                f"{center_state}"
+                                f"[{center_state}]"
                             ),
                             (
                                 f"Shoulder-Hip sync: "
                                 f"{front_result['shoulder_hip_sync']:.2f} "
-                                f"{sync_state}"
+                                f"[{sync_state}]"
                             ),
                             (
-                                f"Left knee: "
-                                f"{front_form['left_state']}"
-                            ),
-                            (
-                                f"Right knee: "
+                                f"Knees: "
+                                f"{front_form['left_state']} / "
                                 f"{front_form['right_state']}"
                             ),
                             (
@@ -475,36 +690,11 @@ def run_camera():
                                 f"({front_form['symmetry_value']:.2f})"
                             ),
                             (
-                                f"L/R inward: "
+                                f"Inward L/R: "
                                 f"{front_form['left_value']:.2f} / "
                                 f"{front_form['right_value']:.2f}"
                             )
                         ]
-
-                        if last_completed_rep:
-                            lines.extend([
-                                "--- LAST REP ---",
-                                (
-                                    f"Quality: "
-                                    f"{last_completed_rep['quality_score']:.1f} "
-                                    f"{last_completed_rep['quality_label']}"
-                                ),
-                                (
-                                    f"Tempo D/B/U: "
-                                    f"{format_time(last_completed_rep.get('descent_time'))} / "
-                                    f"{format_time(last_completed_rep.get('bottom_time'))} / "
-                                    f"{format_time(last_completed_rep.get('ascent_time'))}"
-                                )
-                            ])
-
-                        draw_lines(
-                            frame,
-                            lines,
-                            x=25,
-                            y=35,
-                            font_scale=0.48,
-                            step=27
-                        )
 
                 elif view == "SIDE":
                     left_visibility = (
@@ -575,8 +765,8 @@ def run_camera():
                         ],
                         17.0,
                         20.0,
-                        "TRUNK OK",
-                        "LEANING TOO MUCH"
+                        "OK",
+                        "TOO MUCH"
                     )
 
                     head_state = metric_state(
@@ -585,8 +775,8 @@ def run_camera():
                         ],
                         0.35,
                         0.55,
-                        "HEAD OK",
-                        "HEAD FORWARD"
+                        "OK",
+                        "FORWARD"
                     )
 
                     sync_state = metric_state(
@@ -595,34 +785,26 @@ def run_camera():
                         ],
                         0.20,
                         0.40,
-                        "SYNC OK",
-                        "HIP/SHOULDER DESYNC"
+                        "OK",
+                        "CHECK"
                     )
 
-                    lines = [
-                        "Mode: SIDE",
+                    mode_lines = [
                         (
-                            f"Tracking: "
-                            f"{active_leg}"
-                        ),
-                        (
-                            f"View count: "
-                            f"{side_result['count']}"
+                            f"Phase: "
+                            f"{side_result['phase']}"
                         ),
                         (
                             f"Session reps: "
                             f"{len(performance.reps)}"
                         ),
                         (
-                            f"Phase: "
-                            f"{side_result['phase']}"
+                            f"Tracking: "
+                            f"{active_leg}"
                         ),
                         (
-                            f"Knee: "
-                            f"{side_result['knee_angle']:.1f}"
-                        ),
-                        (
-                            f"Hip: "
+                            f"Knee / Hip: "
+                            f"{side_result['knee_angle']:.1f} / "
                             f"{side_result['hip_angle']:.1f}"
                         ),
                         (
@@ -632,139 +814,68 @@ def run_camera():
                         (
                             f"Depth: "
                             f"{side_result['depth']}"
-                        ),
+                        )
+                    ]
+
+                    form_lines = [
                         (
                             f"Trunk: "
                             f"{side_result['trunk_lean']:.1f} "
-                            f"{trunk_state}"
+                            f"[{trunk_state}]"
                         ),
                         (
                             f"Head: "
                             f"{side_result['head_forward']:.2f} "
-                            f"{head_state}"
+                            f"[{head_state}]"
                         ),
                         (
                             f"Shoulder-Hip sync: "
                             f"{side_result['shoulder_hip_sync']:.2f} "
-                            f"{sync_state}"
+                            f"[{sync_state}]"
                         )
                     ]
 
-                    if last_completed_rep:
-                        lines.extend([
-                            "--- LAST REP ---",
-                            (
-                                f"Quality: "
-                                f"{last_completed_rep['quality_score']:.1f} "
-                                f"{last_completed_rep['quality_label']}"
-                            ),
-                            (
-                                f"Tempo D/B/U: "
-                                f"{format_time(last_completed_rep.get('descent_time'))} / "
-                                f"{format_time(last_completed_rep.get('bottom_time'))} / "
-                                f"{format_time(last_completed_rep.get('ascent_time'))}"
-                            ),
-                            (
-                                f"Total: "
-                                f"{format_time(last_completed_rep.get('total_time'))}"
-                            )
-                        ])
-
-                    draw_lines(
-                        frame,
-                        lines,
-                        x=25,
-                        y=35,
-                        font_scale=0.48,
-                        step=27
-                    )
-
                 else:
-                    cv2.putText(
-                        frame,
-                        "Adjust camera angle",
-                        (
-                            30,
-                            50
-                        ),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8,
-                        (
-                            255,
-                            255,
-                            255
-                        ),
-                        2
-                    )
+                    mode_lines = [
+                        "Adjust camera angle"
+                    ]
 
-                draw_set_panel(
-                    frame,
-                    performance,
-                    width
-                )
+                    form_lines = [
+                        "Turn to FRONT or SIDE"
+                    ]
 
-                cv2.putText(
-                    frame,
-                    (
-                        f"View: {view} | "
-                        f"Raw: {raw_view} | "
-                        f"Ratio: {view_ratio:.2f}"
-                    ),
-                    (
-                        30,
-                        height - 50
-                    ),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.55,
-                    (
-                        255,
-                        255,
-                        255
-                    ),
-                    2
-                )
-
-                cv2.putText(
-                    frame,
-                    position,
-                    (
-                        30,
-                        height - 20
-                    ),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.55,
-                    (
-                        255,
-                        255,
-                        255
-                    ),
-                    2
-                )
-
-            else:
-                cv2.putText(
-                    frame,
-                    "Body not detected",
-                    (
-                        30,
-                        50
-                    ),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (
-                        255,
-                        255,
-                        255
-                    ),
-                    2
-                )
-
-            cv2.imshow(
-                window_name,
+            dashboard = make_dashboard(
                 frame
             )
 
+            draw_dashboard(
+                dashboard,
+                camera_width,
+                view,
+                raw_view,
+                view_ratio,
+                position,
+                mode_lines,
+                form_lines,
+                last_completed_rep,
+                performance,
+                show_debug
+            )
+
+            cv2.imshow(
+                window_name,
+                dashboard
+            )
+
             key = cv2.waitKey(1) & 0xFF
+
+            if key in (
+                ord("d"),
+                ord("D")
+            ):
+                show_debug = (
+                    not show_debug
+                )
 
             if key in (
                 ord("q"),
