@@ -289,7 +289,32 @@ def draw_interface(
     height = frame.shape[0]
     width = frame.shape[1]
 
-    margin = 14
+    margin = 18
+    footer_space = 34
+    gap = 18
+
+    card_width = min(
+        330,
+        max(
+            260,
+            (
+                width
+                - margin * 2
+                - gap
+            ) // 2
+        )
+    )
+
+    left_x = margin
+    right_x = (
+        width
+        - margin
+        - card_width
+    )
+
+    top_y = margin
+
+    summary = performance.get_set_summary()
 
     if display_mode == "SIMPLE":
         simple_status = [
@@ -297,20 +322,25 @@ def draw_interface(
             f"{position}"
         ] + simple_lines
 
+        main_width = min(
+            360,
+            width - margin * 2
+        )
+
         draw_panel(
             frame,
             "AI SPORT COACH",
             simple_status,
             margin,
-            margin,
-            300,
+            top_y,
+            main_width,
             line_height=25
         )
 
         if last_completed_rep:
             last_lines = [
                 (
-                    f"Rep #{last_completed_rep['rep']} "
+                    f"Rep #{last_completed_rep['rep']}  "
                     f"{last_completed_rep['quality_label']}"
                 ),
                 (
@@ -318,8 +348,6 @@ def draw_interface(
                     f"{last_completed_rep['quality_score']:.1f}"
                 )
             ]
-
-            last_width = 250
 
             last_height = (
                 31
@@ -331,48 +359,55 @@ def draw_interface(
                 frame,
                 "LAST REP",
                 last_lines,
-                width - last_width - margin,
-                height - last_height - margin,
-                last_width,
+                right_x,
+                height
+                - last_height
+                - footer_space,
+                card_width,
                 line_height=24
             )
 
         return
 
-    status_lines = [
+    live_lines = [
         f"View: {view}",
         f"{position}"
-    ]
+    ] + detail_live_lines
 
-    draw_panel(
+    live_height = draw_panel(
         frame,
-        "AI SPORT COACH",
-        status_lines + detail_live_lines,
-        margin,
-        margin,
-        315,
+        "LIVE",
+        live_lines,
+        left_x,
+        top_y,
+        card_width,
         line_height=24
     )
 
-    form_width = 310
-
-    draw_panel(
+    form_height = draw_panel(
         frame,
         "FORM",
         detail_form_lines,
-        width - form_width - margin,
-        margin,
-        form_width,
+        right_x,
+        top_y,
+        card_width,
         line_height=24
     )
 
-    summary = performance.get_set_summary()
+    bottom_left_y = (
+        height
+        - footer_space
+    )
+    bottom_right_y = (
+        height
+        - footer_space
+    )
 
     if summary["reps"] > 0:
         set_lines = [
             f"Reps: {summary['reps']}",
-            f"Avg: {summary['average_score']:.1f}",
-            f"Best: #{summary['best_rep']}",
+            f"Average: {summary['average_score']:.1f}",
+            f"Best rep: #{summary['best_rep']}",
             f"Trend: {summary['trend']}"
         ]
 
@@ -382,29 +417,35 @@ def draw_interface(
             + 24 * len(set_lines)
         )
 
+        bottom_left_y = (
+            height
+            - set_height
+            - footer_space
+        )
+
         draw_panel(
             frame,
-            "SET",
+            "SET SUMMARY",
             set_lines,
-            margin,
-            height - set_height - margin,
-            250,
+            left_x,
+            bottom_left_y,
+            card_width,
             line_height=24
         )
 
     if last_completed_rep:
         last_lines = [
             (
-                f"Rep #{last_completed_rep['rep']} "
+                f"Rep #{last_completed_rep['rep']}  "
                 f"{last_completed_rep['view']}"
             ),
             (
                 f"Quality: "
-                f"{last_completed_rep['quality_score']:.1f} "
+                f"{last_completed_rep['quality_score']:.1f}  "
                 f"{last_completed_rep['quality_label']}"
             ),
             (
-                f"D/B/U: "
+                f"Tempo D/B/U: "
                 f"{format_time(last_completed_rep.get('descent_time'))} / "
                 f"{format_time(last_completed_rep.get('bottom_time'))} / "
                 f"{format_time(last_completed_rep.get('ascent_time'))}"
@@ -415,50 +456,90 @@ def draw_interface(
             )
         ]
 
-        last_width = 330
-
         last_height = (
             31
             + 16
             + 24 * len(last_lines)
         )
 
+        bottom_right_y = (
+            height
+            - last_height
+            - footer_space
+        )
+
         draw_panel(
             frame,
             "LAST REP",
             last_lines,
-            width - last_width - margin,
-            height - last_height - margin,
-            last_width,
+            right_x,
+            bottom_right_y,
+            card_width,
             line_height=24
         )
 
     if display_mode == "DEBUG":
-        debug_width = 340
+        debug_width = min(
+            360,
+            width - margin * 2
+        )
 
         debug_height = (
             31
             + 16
-            + 23 * len(debug_lines)
+            + 22 * len(debug_lines)
         )
 
-        debug_y = max(
-            margin + 180,
-            (
-                height - debug_height
-            ) // 2
+        top_cards_bottom = (
+            top_y
+            + max(
+                live_height,
+                form_height
+            )
+            + gap
         )
+
+        bottom_cards_top = min(
+            bottom_left_y,
+            bottom_right_y
+        ) - gap
+
+        available_height = (
+            bottom_cards_top
+            - top_cards_bottom
+        )
+
+        if available_height >= debug_height:
+            debug_y = (
+                top_cards_bottom
+                + (
+                    available_height
+                    - debug_height
+                ) // 2
+            )
+        else:
+            debug_y = max(
+                top_cards_bottom,
+                (
+                    height
+                    - debug_height
+                ) // 2
+            )
+
+        debug_x = (
+            width
+            - debug_width
+        ) // 2
 
         draw_panel(
             frame,
-            "DEBUG",
+            "DEBUG DATA",
             debug_lines,
-            width - debug_width - margin,
+            debug_x,
             debug_y,
             debug_width,
-            line_height=23
+            line_height=22
         )
-
 
 def run_camera():
     cap = cv2.VideoCapture(0)
