@@ -344,6 +344,86 @@ class SessionPerformanceAnalyzerTests(unittest.TestCase):
             ]
         )
 
+    def test_ascent_control_uses_ascent_specific_metric(self):
+        analyzer = SessionPerformanceAnalyzer()
+
+        side = analyzer.analyze_rep({
+            "rep": 1,
+            "view": "SIDE",
+            "total_time": 2.0,
+            "min_knee_angle": 80.0,
+            "rom_degrees": 100.0,
+            "max_trunk_lean": 30.0,
+            "max_head_forward": 0.25,
+            "max_sync_error": 0.36,
+            "max_ascent_sync_error": 0.10,
+            "max_depth_margin": 0.02,
+            "depth_standard_met": True,
+            "ipf_depth_proxy_met": True
+        })
+
+        self.assertTrue(
+            side["standard_checks"][
+                "ascent_control"
+            ]
+        )
+        self.assertTrue(
+            side["standard_met"]
+        )
+        self.assertNotIn(
+            "SYNC",
+            side["issues"]
+        )
+
+        front = analyzer.analyze_rep({
+            "rep": 2,
+            "view": "FRONT",
+            "total_time": 2.0,
+            "max_head_shift": 0.10,
+            "max_shoulder_tilt": 0.10,
+            "max_center_shift": 0.08,
+            "max_sync_error": 0.35,
+            "max_ascent_sync_error": 0.12,
+            "max_left_inward": 0.02,
+            "max_right_inward": 0.02,
+            "max_symmetry_value": 0.12
+        })
+
+        self.assertTrue(
+            front["standard_checks"][
+                "ascent_control"
+            ]
+        )
+        self.assertTrue(
+            front["standard_met"]
+        )
+        self.assertNotIn(
+            "SYNC",
+            front["issues"]
+        )
+
+    def test_front_standard_scope_does_not_claim_depth(self):
+        analyzer = SessionPerformanceAnalyzer()
+
+        result = analyzer.analyze_rep({
+            "rep": 1,
+            "view": "FRONT",
+            "total_time": 2.0,
+            "max_ascent_sync_error": 0.10,
+            "max_left_inward": 0.01,
+            "max_right_inward": 0.01,
+            "max_symmetry_value": 0.10
+        })
+
+        self.assertEqual(
+            result["standard_scope"],
+            "FRONT_TECHNIQUE_ONLY"
+        )
+        self.assertNotIn(
+            "depth",
+            result["standard_checks"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
