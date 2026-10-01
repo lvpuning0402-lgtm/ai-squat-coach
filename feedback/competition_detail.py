@@ -358,6 +358,74 @@ class CompetitionDetailEvaluator:
         }
 
     @staticmethod
+    def _weight_coverage(
+        checks,
+        weights
+    ):
+        configured = sum(
+            float(
+                weight
+            )
+            for weight in weights.values()
+        )
+
+        if configured <= 0:
+            return 0.0
+
+        available = sum(
+            float(
+                weight
+            )
+            for key, weight
+            in weights.items()
+            if checks.get(
+                key,
+                {}
+            ).get(
+                "score"
+            ) is not None
+        )
+
+        return round(
+            available
+            / configured,
+            3
+        )
+
+    @staticmethod
+    def _coverage_confidence(
+        coverage,
+        samples=None,
+        phase=None
+    ):
+        if coverage < 0.70:
+            return "LOW"
+
+        if samples is None:
+            return (
+                "HIGH"
+                if coverage >= 0.90
+                else "MEDIUM"
+            )
+
+        if samples <= 0:
+            return "LOW"
+
+        high_sample_min = (
+            2
+            if phase == "bottom"
+            else 4
+        )
+
+        if (
+            coverage >= 0.90
+            and samples >= high_sample_min
+        ):
+            return "HIGH"
+
+        return "MEDIUM"
+
+    @staticmethod
     def _weighted_score(
         checks,
         weights
@@ -828,13 +896,24 @@ class CompetitionDetailEvaluator:
                     "Phase-specific shoulder/hip ascent coordination."
                 )
 
+            phase_weights = PHASE_DETAIL_WEIGHTS[
+                "FRONT"
+            ][
+                phase
+            ]
+
             score, components = self._weighted_score(
                 checks,
-                PHASE_DETAIL_WEIGHTS[
-                    "FRONT"
-                ][
-                    phase
-                ]
+                phase_weights
+            )
+
+            coverage = self._weight_coverage(
+                checks,
+                phase_weights
+            )
+            samples = metrics.get(
+                "samples",
+                0
             )
 
             results[
@@ -855,10 +934,13 @@ class CompetitionDetailEvaluator:
                 "warnings": self._phase_warnings(
                     checks
                 ),
-                "samples": metrics.get(
-                    "samples",
-                    0
+                "coverage": coverage,
+                "confidence": self._coverage_confidence(
+                    coverage,
+                    samples=samples,
+                    phase=phase
                 ),
+                "samples": samples,
             }
 
         return results
@@ -1063,13 +1145,24 @@ class CompetitionDetailEvaluator:
                     "Return-to-upright knee-extension proxy."
                 )
 
+            phase_weights = PHASE_DETAIL_WEIGHTS[
+                "SIDE"
+            ][
+                phase
+            ]
+
             score, components = self._weighted_score(
                 checks,
-                PHASE_DETAIL_WEIGHTS[
-                    "SIDE"
-                ][
-                    phase
-                ]
+                phase_weights
+            )
+
+            coverage = self._weight_coverage(
+                checks,
+                phase_weights
+            )
+            samples = metrics.get(
+                "samples",
+                0
             )
 
             results[
@@ -1090,10 +1183,13 @@ class CompetitionDetailEvaluator:
                 "warnings": self._phase_warnings(
                     checks
                 ),
-                "samples": metrics.get(
-                    "samples",
-                    0
+                "coverage": coverage,
+                "confidence": self._coverage_confidence(
+                    coverage,
+                    samples=samples,
+                    phase=phase
                 ),
+                "samples": samples,
                 "angle_snapshot": {
                     "min_knee_angle_deg": self._safe(
                         metrics.get(
@@ -1420,13 +1516,20 @@ class CompetitionDetailEvaluator:
             ),
         }
 
+        front_weights = DETAIL_WEIGHTS[
+            "FRONT_COACH"
+        ]
+
         detail_score, weighted_components = (
             self._weighted_score(
                 checks,
-                DETAIL_WEIGHTS[
-                    "FRONT_COACH"
-                ]
+                front_weights
             )
+        )
+
+        detail_coverage = self._weight_coverage(
+            checks,
+            front_weights
         )
 
         physique_score, physique_components = (
@@ -1450,6 +1553,10 @@ class CompetitionDetailEvaluator:
             ),
             "detail_label": self._detail_label(
                 detail_score
+            ),
+            "detail_coverage": detail_coverage,
+            "detail_confidence": self._coverage_confidence(
+                detail_coverage
             ),
             "weighted_components": weighted_components,
             "detail_deductions": self._deductions(
@@ -1684,13 +1791,20 @@ class CompetitionDetailEvaluator:
             ),
         }
 
+        side_weights = DETAIL_WEIGHTS[
+            "SIDE_COACH"
+        ]
+
         detail_score, weighted_components = (
             self._weighted_score(
                 checks,
-                DETAIL_WEIGHTS[
-                    "SIDE_COACH"
-                ]
+                side_weights
             )
+        )
+
+        detail_coverage = self._weight_coverage(
+            checks,
+            side_weights
         )
 
         ipf_score, ipf_components = (
@@ -1723,6 +1837,10 @@ class CompetitionDetailEvaluator:
             ),
             "detail_label": self._detail_label(
                 detail_score
+            ),
+            "detail_coverage": detail_coverage,
+            "detail_confidence": self._coverage_confidence(
+                detail_coverage
             ),
             "weighted_components": weighted_components,
             "detail_deductions": self._deductions(
@@ -1791,6 +1909,8 @@ class CompetitionDetailEvaluator:
                 "detail_score": None,
                 "detail_grade": "N/A",
                 "detail_label": "INFO",
+                "detail_coverage": 0.0,
+                "detail_confidence": "LOW",
                 "weighted_components": {},
                 "detail_deductions": [],
                 "phase_scores": {},
