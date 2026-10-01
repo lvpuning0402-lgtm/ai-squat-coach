@@ -178,49 +178,56 @@ went wrong, but *when* in the squat it happened.
 
 ### FRONT phases
 
-**Descent** emphasizes:
+**Descent**
 
-- knee tracking;
-- lateral center balance;
-- pelvis level;
-- left/right knee-angle symmetry;
-- shoulder level;
-- head control;
-- knee-height symmetry.
+- knee tracking: **26%**
+- lateral center balance: **18%**
+- pelvis level: **15%**
+- left/right knee-angle symmetry: **15%**
+- shoulder level: **10%**
+- knee-height symmetry: **10%**
+- head control: **6%**
 
-**Bottom** increases the emphasis on:
+**Bottom**
 
-- knee tracking;
-- center balance;
-- pelvis level;
-- left/right knee-angle symmetry.
+- knee tracking: **25%**
+- lateral center balance: **20%**
+- pelvis level: **18%**
+- left/right knee-angle symmetry: **17%**
+- shoulder level: **10%**
+- head control: **5%**
+- knee-height symmetry: **5%**
 
-**Ascent** gives the largest weight to:
+**Ascent**
 
-- shoulder/hip ascent coordination;
-- knee tracking;
-- center balance;
-- pelvis and shoulder level.
+- shoulder/hip ascent coordination: **30%**
+- knee tracking: **20%**
+- lateral center balance: **14%**
+- pelvis level: **12%**
+- shoulder level: **8%**
+- left/right knee-angle symmetry: **8%**
+- head control: **4%**
+- knee-height symmetry: **4%**
 
 ### SIDE phases
 
-**Descent** scores:
+**Descent**
 
-- head/posture control;
-- trunk-angle stability within the phase.
+- head/posture control: **55%**
+- trunk-angle stability within the phase: **45%**
 
-**Bottom** scores:
+**Bottom**
 
-- GENERAL_STRENGTH depth;
-- head/posture control;
-- trunk-angle stability.
+- GENERAL_STRENGTH depth: **65%**
+- head/posture control: **20%**
+- trunk-angle stability: **15%**
 
-**Ascent** scores:
+**Ascent**
 
-- shoulder/hip ascent coordination;
-- return-to-upright / knee-extension proxy;
-- head/posture control;
-- trunk-angle stability.
+- shoulder/hip ascent coordination: **50%**
+- return-to-upright / knee-extension proxy: **25%**
+- head/posture control: **15%**
+- trunk-angle stability: **10%**
 
 For SIDE, trunk stability means the **range of trunk lean within one phase**,
 not a requirement to hold one universal torso angle. Current project
