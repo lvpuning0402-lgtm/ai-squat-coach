@@ -83,7 +83,6 @@ class SideSquatAnalyzer:
         self.current_max_head_forward = 0.0
         self.current_max_sync_error = 0.0
         self.current_max_depth_margin = -10.0
-        self.current_max_depth_margin = -10.0
 
         self.last_rep = None
 
@@ -171,6 +170,7 @@ class SideSquatAnalyzer:
         self.current_max_trunk_lean = 0.0
         self.current_max_head_forward = 0.0
         self.current_max_sync_error = 0.0
+        self.current_max_depth_margin = -10.0
 
     def reanchor_baseline(
         self,
