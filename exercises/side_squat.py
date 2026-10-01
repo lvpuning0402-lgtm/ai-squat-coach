@@ -626,6 +626,9 @@ class SideSquatAnalyzer:
                     self.head_buffer.append(
                         head_forward
                     )
+                    self.shin_buffer.append(
+                        shin_angle
+                    )
                     self.sync_buffer.append(
                         0.0
                     )
@@ -634,6 +637,7 @@ class SideSquatAnalyzer:
                     smooth_hip = hip_angle
                     smooth_trunk = trunk_lean
                     smooth_head = head_forward
+                    smooth_shin_angle = shin_angle
                     smooth_sync = 0.0
                     smooth_knee_velocity = 0.0
                     shoulder_descent = 0.0
