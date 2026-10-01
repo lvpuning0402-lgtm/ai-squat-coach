@@ -678,11 +678,35 @@ class CompetitionDetailEvaluator:
             in result[
                 "checks"
             ].items()
-            if item.get(
-                "state"
-            ) in (
-                "WATCH",
-                "REVIEW",
+            if (
+                item.get(
+                    "state"
+                ) in (
+                    "WATCH",
+                    "REVIEW",
+                )
+                and item.get(
+                    "lens"
+                ) != "IPF_SQUAT_PROXY"
+            )
+        ]
+
+        competition_flags = [
+            key
+            for key, item
+            in result[
+                "checks"
+            ].items()
+            if (
+                item.get(
+                    "state"
+                ) in (
+                    "WATCH",
+                    "REVIEW",
+                )
+                and item.get(
+                    "lens"
+                ) == "IPF_SQUAT_PROXY"
             )
         ]
 
@@ -692,4 +716,5 @@ class CompetitionDetailEvaluator:
             "profile_sources": COMPETITION_LENSES,
             **result,
             "detail_warnings": warnings,
+            "competition_flags": competition_flags,
         }
