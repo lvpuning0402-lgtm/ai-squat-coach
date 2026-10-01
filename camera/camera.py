@@ -211,12 +211,22 @@ def save_completed_rep(
             f"Database rep save warning: {error}"
         )
 
+    confidence_text = (
+        "VALID"
+        if analyzed.get(
+            "analysis_valid",
+            True
+        )
+        else "EXCLUDED"
+    )
+
     print(
         "REP COMPLETE | "
         f"#{analyzed['rep']} | "
         f"{analyzed['view']} | "
         f"Quality {analyzed['quality_score']:.1f} | "
-        f"{analyzed['quality_label']}"
+        f"{analyzed['quality_label']} | "
+        f"{confidence_text}"
     )
 
     return analyzed
@@ -504,7 +514,8 @@ def draw_interface(
             f"Average: {summary['average_score']:.1f}",
             f"Best rep: #{summary['best_rep']}",
             f"Trend: {summary['trend']}",
-            f"Main issue: {summary['top_issue']}"
+            f"Main issue: {summary['top_issue']}",
+            f"Consistency: {summary['consistency_label']}"
         ]
 
     last_lines = []
@@ -1439,9 +1450,20 @@ def run_camera():
             performance.reps
         )
 
+        summary = performance.get_set_summary()
+
+        valid_reps = [
+            rep
+            for rep in performance.reps
+            if rep.get(
+                "analysis_valid",
+                True
+            )
+        ]
+
         good_reps = sum(
             1
-            for rep in performance.reps
+            for rep in valid_reps
             if rep.get(
                 "quality_score",
                 0
@@ -1452,7 +1474,9 @@ def run_camera():
             database.finish_session(
                 session_id,
                 total_reps,
-                total_reps,
+                len(
+                    valid_reps
+                ),
                 good_reps
             )
         except Exception as error:
@@ -1460,12 +1484,12 @@ def run_camera():
                 f"Database session save warning: {error}"
             )
 
-        summary = performance.get_set_summary()
-
         print(
             "SESSION SUMMARY | "
             f"Reps {summary['reps']} | "
             f"Average {summary['average_score']:.1f} | "
+            f"Valid {summary['valid_reps']}/{summary['reps']} | "
+            f"Consistency {summary['consistency_label']} | "
             f"Trend {summary['trend']} | "
             f"Issue {summary['top_issue']}"
         )
