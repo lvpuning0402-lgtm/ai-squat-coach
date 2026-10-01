@@ -947,6 +947,8 @@ class SessionPerformanceAnalyzer:
                 "side_ipf_proxy_passes": 0,
                 "side_ipf_proxy_rate": 0.0,
                 "best_rep": None,
+                "best_detail_rep": None,
+                "best_detail_score": None,
                 "tempo_change": 0.0,
                 "quality_change": 0.0,
                 "tempo_cv": None,
@@ -997,6 +999,8 @@ class SessionPerformanceAnalyzer:
                 "side_ipf_proxy_passes": 0,
                 "side_ipf_proxy_rate": 0.0,
                 "best_rep": None,
+                "best_detail_rep": None,
+                "best_detail_score": None,
                 "tempo_change": 0.0,
                 "quality_change": 0.0,
                 "tempo_cv": None,
@@ -1740,6 +1744,25 @@ class SessionPerformanceAnalyzer:
             ]
         )
 
+        detail_ranked_reps = [
+            rep
+            for rep in valid_reps
+            if rep.get(
+                "detail_score"
+            ) is not None
+        ]
+
+        best_detail_rep = (
+            max(
+                detail_ranked_reps,
+                key=lambda rep: rep[
+                    "detail_score"
+                ]
+            )
+            if detail_ranked_reps
+            else None
+        )
+
         quality_change = 0.0
         tempo_change = 0.0
 
@@ -1926,6 +1949,23 @@ class SessionPerformanceAnalyzer:
             ),
             "best_rep": best_rep.get(
                 "rep"
+            ),
+            "best_detail_rep": (
+                best_detail_rep.get(
+                    "rep"
+                )
+                if best_detail_rep
+                else None
+            ),
+            "best_detail_score": (
+                round(
+                    best_detail_rep.get(
+                        "detail_score"
+                    ),
+                    1
+                )
+                if best_detail_rep
+                else None
             ),
             "tempo_change": round(
                 tempo_change,
