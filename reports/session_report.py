@@ -67,7 +67,8 @@ class SessionReportExporter:
         session_id,
         reps,
         summary,
-        session_type="TEST"
+        session_type="TEST",
+        diagnostics=None
     ):
         issue_counter = Counter()
         view_counter = Counter()
@@ -182,6 +183,7 @@ class SessionReportExporter:
             "issue_counts": dict(
                 issue_counter
             ),
+            "diagnostics": diagnostics or {},
             "reps": reps,
             "note": (
                 "Training feedback only; "
@@ -437,13 +439,15 @@ class SessionReportExporter:
         session_id,
         reps,
         summary,
-        session_type="TEST"
+        session_type="TEST",
+        diagnostics=None
     ):
         report = self.build_report(
             session_id,
             reps,
             summary,
-            session_type=session_type
+            session_type=session_type,
+            diagnostics=diagnostics
         )
 
         timestamp = datetime.now().strftime(
