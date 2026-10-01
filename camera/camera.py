@@ -541,7 +541,12 @@ def draw_interface(
                 f"Reps: {summary['valid_reps']}/"
                 f"{summary['reps']} valid"
             ),
-            f"Average: {summary['average_score']:.1f}",
+            f"Average score: {summary['average_score']:.1f}",
+            (
+                f"Standard: {summary['standard_passes']}/"
+                f"{summary['valid_reps']} pass "
+                f"({summary['standard_pass_rate']:.0f}%)"
+            ),
             f"Best rep: #{summary['best_rep']}",
             f"Trend: {summary['trend']}",
             f"Main issue: {summary['top_issue']}",
@@ -1483,9 +1488,9 @@ def run_camera():
             1
             for rep in valid_reps
             if rep.get(
-                "quality_score",
-                0
-            ) >= 75
+                "standard_met",
+                False
+            )
         )
 
         try:
@@ -1507,6 +1512,9 @@ def run_camera():
             f"Reps {summary['reps']} | "
             f"Average {summary['average_score']:.1f} | "
             f"Valid {summary['valid_reps']}/{summary['reps']} | "
+            f"Standard {summary['standard_passes']}/"
+            f"{summary['valid_reps']} "
+            f"({summary['standard_pass_rate']:.1f}%) | "
             f"Consistency {summary['consistency_label']} | "
             f"Trend {summary['trend']} | "
             f"Issue {summary['top_issue']}"
