@@ -53,6 +53,14 @@ The coach layer only explains metrics already measured by the pose system. It do
 
 Session JSON reports include a `coach_feedback` object. Formal history JSON reports include `progress_feedback`.
 
+The movement report now also includes a secondary `MULTI_COMPETITION_DETAIL` layer.
+It keeps the hard squat standard separate from additional coaching detail:
+
+- FRONT: shoulder level, hip level, center balance, head control, left/right knee-angle symmetry and knee-height symmetry;
+- SIDE: GENERAL depth, IPF depth proxy, ascent control, return-to-upright proxy, head control, knee/hip/trunk/shin angles;
+- IFBB/NPC physique judging concepts are used only as a symmetry/balance/presentation-inspired visual-control lens;
+- bodybuilding muscularity/conditioning is not scored from squat video, and the physique lens is not an official bodybuilding or squat judging score.
+
 When a set is ended with Q / ESC, the camera window now switches to a visual session summary with:
 
 - valid reps, score and standard pass rate;
