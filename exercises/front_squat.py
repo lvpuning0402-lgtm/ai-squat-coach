@@ -156,6 +156,8 @@ class FrontSquatAnalyzer:
         self.hip_buffer.clear()
         self.combined_buffer.clear()
         self.velocity_buffer.clear()
+        self.head_shift_buffer.clear()
+        self.shoulder_tilt_buffer.clear()
         self.hip_tilt_buffer.clear()
         self.knee_asymmetry_buffer.clear()
         self.center_shift_buffer.clear()
