@@ -738,7 +738,9 @@ def build_session_summary_frame(
         ),
         (
             f"Detail score: "
-            f"{summary.get('average_detail_score', 0.0):.1f}"
+            f"{summary.get('average_detail_score', 0.0):.1f} "
+            f"| coverage "
+            f"{summary.get('average_detail_coverage', 0.0) * 100:.0f}%"
         ),
         (
             f"Detail notes: "
@@ -853,7 +855,8 @@ def build_session_summary_frame(
             (
                 "Weak phase: "
                 f"{str(weakest_phase.get('phase', '--')).upper()} "
-                f"{weakest_phase.get('score', 0.0):.1f}"
+                f"{weakest_phase.get('score', 0.0):.1f} "
+                f"[{weakest_phase.get('confidence') or 'LOW'}]"
             )
         )
 
@@ -1332,7 +1335,8 @@ def draw_interface(
                 f"Detail: "
                 f"{last_completed_rep.get('detail_score', 0.0):.1f}  "
                 f"{last_completed_rep.get('detail_grade', 'N/A')}  "
-                f"{last_completed_rep.get('detail_label', 'INFO')}"
+                f"{last_completed_rep.get('detail_label', 'INFO')} "
+                f"[{last_completed_rep.get('detail_confidence', 'LOW')}]"
             ),
             (
                 "Phase score D/B/A: "
