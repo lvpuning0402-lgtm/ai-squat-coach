@@ -547,7 +547,10 @@ class SessionPerformanceAnalyzer:
             )
             sync = self._safe(
                 rep_data.get(
-                    "max_sync_error"
+                    "max_ascent_sync_error",
+                    rep_data.get(
+                        "max_sync_error"
+                    )
                 ),
                 0.0
             )
@@ -670,7 +673,10 @@ class SessionPerformanceAnalyzer:
             )
             sync = self._safe(
                 rep_data.get(
-                    "max_sync_error"
+                    "max_ascent_sync_error",
+                    rep_data.get(
+                        "max_sync_error"
+                    )
                 ),
                 0.0
             )
