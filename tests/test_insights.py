@@ -249,6 +249,78 @@ class SessionInsightBuilderTests(unittest.TestCase):
         )
 
 
+    def test_session_feedback_reports_weakest_phase(self):
+        builder = SessionInsightBuilder()
+
+        reps = [
+            {
+                "rep": 1,
+                "view": "FRONT",
+                "analysis_valid": True,
+                "set_valid": True,
+                "standard_met": True,
+                "standard_checks": {
+                    "knee_tracking": True,
+                    "ascent_control": True
+                },
+                "issues": [],
+                "detail_warnings": []
+            },
+            {
+                "rep": 2,
+                "view": "FRONT",
+                "analysis_valid": True,
+                "set_valid": True,
+                "standard_met": True,
+                "standard_checks": {
+                    "knee_tracking": True,
+                    "ascent_control": True
+                },
+                "issues": [],
+                "detail_warnings": []
+            }
+        ]
+
+        result = builder.build(
+            reps,
+            {
+                "excluded_reps": 0,
+                "weakest_phase": {
+                    "phase": "bottom",
+                    "score": 78.5
+                }
+            },
+            session_type="TRAINING"
+        )
+
+        self.assertEqual(
+            result[
+                "phase_focus"
+            ],
+            "bottom"
+        )
+        self.assertEqual(
+            result[
+                "phase_focus_score"
+            ],
+            78.5
+        )
+        self.assertIn(
+            "最低点阶段",
+            result[
+                "focus"
+            ]
+        )
+        self.assertTrue(
+            any(
+                "Weak phase" in line
+                for line in result[
+                    "ui_lines"
+                ]
+            )
+        )
+
+
 class ProgressInsightBuilderTests(unittest.TestCase):
     def test_progress_feedback_uses_formal_baseline_change(self):
         builder = ProgressInsightBuilder()
