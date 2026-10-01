@@ -57,6 +57,49 @@ class SessionInsightBuilder:
         "NONE": "Keep the same movement pattern",
     }
 
+
+    DETAIL_TEXT_ZH = {
+        "shoulder_level": "肩线水平",
+        "hip_level": "骨盆水平",
+        "center_balance": "身体重心稳定",
+        "head_control": "头颈控制",
+        "knee_angle_symmetry": "左右膝屈曲对称",
+        "knee_height_symmetry": "左右膝高度对称",
+        "lockout_proxy": "站起锁定完成度",
+        "ipf_depth_proxy": "IPF 深度代理",
+        "general_depth": "通用训练深度",
+        "knee_tracking": "膝盖轨迹",
+        "ascent_control": "起身协同",
+    }
+
+    DETAIL_CUE_ZH = {
+        "shoulder_level": "下一组注意两侧肩线保持更平稳，避免明显一高一低。",
+        "hip_level": "下一组注意骨盆左右保持稳定，不要让一侧明显先下沉或先抬起。",
+        "center_balance": "下一组让身体重心尽量留在双脚中间，减少左右晃动。",
+        "head_control": "下一组保持头颈随躯干稳定移动，避免明显前探或侧偏。",
+        "knee_angle_symmetry": "下一组注意左右腿同时下蹲和起身，减少两侧膝屈曲差异。",
+        "knee_height_symmetry": "下一组注意左右腿受力和下降节奏更一致。",
+        "lockout_proxy": "下一组站起时完成完整伸展后再结束动作。",
+        "ipf_depth_proxy": "如果目标是力量举比赛深度，再下沉到髋部明显低于膝部的代理位置。",
+        "general_depth": "下一组把髋部下沉到大腿接近平行或更低。",
+        "knee_tracking": "下一组优先让膝盖始终跟随脚尖方向。",
+        "ascent_control": "下一组起身时让肩部和髋部一起向上。",
+    }
+
+    DETAIL_UI = {
+        "shoulder_level": "Shoulder level",
+        "hip_level": "Hip level",
+        "center_balance": "Center balance",
+        "head_control": "Head control",
+        "knee_angle_symmetry": "Knee symmetry",
+        "knee_height_symmetry": "Leg symmetry",
+        "lockout_proxy": "Lockout proxy",
+        "ipf_depth_proxy": "IPF depth proxy",
+        "general_depth": "General depth",
+        "knee_tracking": "Knee tracking",
+        "ascent_control": "Ascent control",
+    }
+
     @staticmethod
     def _valid_reps(
         reps
@@ -135,6 +178,42 @@ class SessionInsightBuilder:
 
         return (
             issue,
+            count,
+            self._rate(
+                count,
+                len(
+                    valid_reps
+                )
+            )
+        )
+
+    def _detail_focus(
+        self,
+        valid_reps
+    ):
+        counter = Counter()
+
+        for rep in valid_reps:
+            counter.update(
+                rep.get(
+                    "detail_warnings",
+                    []
+                )
+            )
+
+        if not counter:
+            return (
+                "NONE",
+                0,
+                0.0
+            )
+
+        key, count = counter.most_common(
+            1
+        )[0]
+
+        return (
+            key,
             count,
             self._rate(
                 count,
@@ -256,6 +335,14 @@ class SessionInsightBuilder:
             valid_reps
         )
 
+        (
+            detail_focus,
+            detail_focus_count,
+            detail_focus_rate
+        ) = self._detail_focus(
+            valid_reps
+        )
+
         overview = (
             f"本组完成 {total} 次有效动作，"
             f"{pass_count} 次通过当前标准"
@@ -315,7 +402,7 @@ class SessionInsightBuilder:
         if main_issue == "KNEE_TRACKING":
             focus = (
                 f"{issue_count}/{total} 次动作出现膝盖向内偏移，"
-                "这是当前最需要优先处理的动作问题。"
+                "这是当前最需要优先处理的标准问题。"
             )
         elif main_issue == "DEPTH":
             if side_reps:
@@ -331,25 +418,78 @@ class SessionInsightBuilder:
             focus = (
                 f"{issue_count}/{total} 次动作的起身阶段肩髋协同需要改善。"
             )
-        else:
-            focus = "当前没有反复出现的主要标准问题。"
-
-        if session_type == "TEST":
-            headline = (
-                f"测试结果：主要关注 {self.ISSUE_TEXT_ZH.get(main_issue, main_issue)}。"
-                if main_issue != "NONE"
-                else "测试结果：当前主要标准项表现稳定。"
+        elif detail_focus != "NONE":
+            detail_label = self.DETAIL_TEXT_ZH.get(
+                detail_focus,
+                detail_focus
+            )
+            focus = (
+                f"硬性标准已通过，但 {detail_focus_count}/{total} 次动作"
+                f"出现“{detail_label}”细节提示。"
             )
         else:
-            if pass_rate >= 90.0:
+            focus = "当前没有反复出现的主要标准问题或细节提示。"
+
+        if main_issue != "NONE":
+            selected_focus = main_issue
+            selected_label_zh = self.ISSUE_TEXT_ZH.get(
+                main_issue,
+                main_issue
+            )
+            selected_label_ui = self.ISSUE_UI.get(
+                main_issue,
+                main_issue
+            )
+            next_action = self.ISSUE_CUE_ZH.get(
+                main_issue,
+                self.ISSUE_CUE_ZH[
+                    "NONE"
+                ]
+            )
+        elif detail_focus != "NONE":
+            selected_focus = detail_focus
+            selected_label_zh = self.DETAIL_TEXT_ZH.get(
+                detail_focus,
+                detail_focus
+            )
+            selected_label_ui = self.DETAIL_UI.get(
+                detail_focus,
+                detail_focus
+            )
+            next_action = self.DETAIL_CUE_ZH.get(
+                detail_focus,
+                "下一组继续保持自然动作，并优先改善这一项细节。"
+            )
+        else:
+            selected_focus = "NONE"
+            selected_label_zh = "当前动作"
+            selected_label_ui = "No major issue"
+            next_action = self.ISSUE_CUE_ZH[
+                "NONE"
+            ]
+
+        if session_type == "TEST":
+            if main_issue != "NONE":
+                headline = (
+                    f"测试结果：主要关注 {selected_label_zh}。"
+                )
+            elif detail_focus != "NONE":
+                headline = (
+                    f"测试结果：标准通过，但细节可优化——{selected_label_zh}。"
+                )
+            else:
+                headline = "测试结果：当前主要标准项和细节表现稳定。"
+        else:
+            if main_issue == "NONE" and detail_focus == "NONE":
                 headline = "本组动作整体稳定，可以保持当前技术模式。"
             elif main_issue != "NONE":
                 headline = (
-                    f"本组优先改善："
-                    f"{self.ISSUE_TEXT_ZH.get(main_issue, main_issue)}。"
+                    f"本组优先改善：{selected_label_zh}。"
                 )
             else:
-                headline = "本组没有明显反复出现的技术问题。"
+                headline = (
+                    f"本组标准通过，下一步优化：{selected_label_zh}。"
+                )
 
         if total >= 5:
             confidence = "HIGH"
@@ -365,10 +505,7 @@ class SessionInsightBuilder:
             ),
             (
                 "Focus: "
-                + self.ISSUE_UI.get(
-                    main_issue,
-                    main_issue
-                )
+                + selected_label_ui
             ),
         ]
 
@@ -378,6 +515,11 @@ class SessionInsightBuilder:
                     main_issue,
                     "Keep movement controlled"
                 )
+            )
+        elif detail_focus != "NONE":
+            ui_lines.append(
+                "Detail: "
+                + selected_label_ui
             )
         else:
             ui_lines.append(
@@ -389,18 +531,16 @@ class SessionInsightBuilder:
             "overview": overview,
             "strength": strength,
             "focus": focus,
-            "next_action": self.ISSUE_CUE_ZH.get(
-                main_issue,
-                self.ISSUE_CUE_ZH[
-                    "NONE"
-                ]
-            ),
+            "next_action": next_action,
             "confidence": confidence,
             "test_protocol": (
                 session_type == "TEST"
             ),
             "main_issue": main_issue,
             "main_issue_rate": issue_rate,
+            "detail_focus": detail_focus,
+            "detail_focus_rate": detail_focus_rate,
+            "selected_focus": selected_focus,
             "standard_pass_rate": pass_rate,
             "metrics": {
                 "valid_reps": total,
