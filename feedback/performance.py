@@ -839,9 +839,17 @@ class SessionPerformanceAnalyzer:
             "detail_score": detail_result[
                 "detail_score"
             ],
+            "detail_grade": detail_result.get(
+                "detail_grade",
+                "N/A"
+            ),
             "detail_label": detail_result[
                 "detail_label"
             ],
+            "detail_weighted_components": detail_result.get(
+                "weighted_components",
+                {}
+            ),
             "detail_checks": detail_result[
                 "checks"
             ],
@@ -895,6 +903,9 @@ class SessionPerformanceAnalyzer:
                 "excluded_reps": 0,
                 "average_score": 0.0,
                 "average_detail_score": 0.0,
+                "average_front_physique_score": None,
+                "average_side_ipf_score": None,
+                "detail_component_averages": {},
                 "detail_watch_reps": 0,
                 "detail_watch_rate": 0.0,
                 "detail_watch_events": 0,
@@ -935,6 +946,9 @@ class SessionPerformanceAnalyzer:
                 ),
                 "average_score": 0.0,
                 "average_detail_score": 0.0,
+                "average_front_physique_score": None,
+                "average_side_ipf_score": None,
+                "detail_component_averages": {},
                 "detail_watch_reps": 0,
                 "detail_watch_rate": 0.0,
                 "detail_watch_events": 0,
@@ -1031,6 +1045,111 @@ class SessionPerformanceAnalyzer:
             if detail_scores
             else 0.0
         )
+
+        front_physique_scores = [
+            rep.get(
+                "competition_lenses",
+                {}
+            ).get(
+                "physique_control",
+                {}
+            ).get(
+                "score"
+            )
+            for rep in valid_reps
+            if (
+                rep.get(
+                    "view"
+                ) == "FRONT"
+                and rep.get(
+                    "competition_lenses",
+                    {}
+                ).get(
+                    "physique_control",
+                    {}
+                ).get(
+                    "score"
+                ) is not None
+            )
+        ]
+
+        side_ipf_scores = [
+            rep.get(
+                "competition_lenses",
+                {}
+            ).get(
+                "ipf_squat_proxy",
+                {}
+            ).get(
+                "score"
+            )
+            for rep in valid_reps
+            if (
+                rep.get(
+                    "view"
+                ) == "SIDE"
+                and rep.get(
+                    "competition_lenses",
+                    {}
+                ).get(
+                    "ipf_squat_proxy",
+                    {}
+                ).get(
+                    "score"
+                ) is not None
+            )
+        ]
+
+        average_front_physique_score = (
+            mean(
+                front_physique_scores
+            )
+            if front_physique_scores
+            else None
+        )
+
+        average_side_ipf_score = (
+            mean(
+                side_ipf_scores
+            )
+            if side_ipf_scores
+            else None
+        )
+
+        detail_component_values = {}
+
+        for rep in valid_reps:
+            for key, component in rep.get(
+                "detail_weighted_components",
+                {}
+            ).items():
+                score = component.get(
+                    "score"
+                )
+
+                if score is None:
+                    continue
+
+                detail_component_values.setdefault(
+                    key,
+                    []
+                ).append(
+                    float(
+                        score
+                    )
+                )
+
+        detail_component_averages = {
+            key: round(
+                mean(
+                    values
+                ),
+                1
+            )
+            for key, values
+            in detail_component_values.items()
+            if values
+        }
 
         detail_watch_reps = sum(
             1
@@ -1342,6 +1461,25 @@ class SessionPerformanceAnalyzer:
                 average_detail_score,
                 1
             ),
+            "average_front_physique_score": (
+                round(
+                    average_front_physique_score,
+                    1
+                )
+                if average_front_physique_score
+                is not None
+                else None
+            ),
+            "average_side_ipf_score": (
+                round(
+                    average_side_ipf_score,
+                    1
+                )
+                if average_side_ipf_score
+                is not None
+                else None
+            ),
+            "detail_component_averages": detail_component_averages,
             "detail_watch_reps": detail_watch_reps,
             "detail_watch_rate": round(
                 detail_watch_rate,
