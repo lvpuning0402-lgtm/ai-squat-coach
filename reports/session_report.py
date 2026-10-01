@@ -259,6 +259,10 @@ class SessionReportExporter:
             "phase_ascent_score",
             "weakest_phase",
             "weakest_phase_score",
+            "top_deduction",
+            "top_deduction_points",
+            "weak_phase_reason",
+            "weak_phase_reason_points",
             "descent_time",
             "bottom_time",
             "ascent_time",
@@ -447,6 +451,90 @@ class SessionReportExporter:
                             ) or {}
                         ).get(
                             "score"
+                        )
+                    ),
+                    "top_deduction": (
+                        (
+                            rep.get(
+                                "detail_deductions",
+                                []
+                            )
+                            or [
+                                {}
+                            ]
+                        )[0].get(
+                            "name"
+                        )
+                    ),
+                    "top_deduction_points": self._safe_number(
+                        (
+                            (
+                                rep.get(
+                                    "detail_deductions",
+                                    []
+                                )
+                                or [
+                                    {}
+                                ]
+                            )[0].get(
+                                "lost_points"
+                            )
+                        )
+                    ),
+                    "weak_phase_reason": (
+                        (
+                            rep.get(
+                                "phase_scores",
+                                {}
+                            ).get(
+                                (
+                                    rep.get(
+                                        "weakest_phase",
+                                        {}
+                                    )
+                                    or {}
+                                ).get(
+                                    "phase"
+                                ),
+                                {}
+                            ).get(
+                                "deductions",
+                                []
+                            )
+                            or [
+                                {}
+                            ]
+                        )[0].get(
+                            "name"
+                        )
+                    ),
+                    "weak_phase_reason_points": self._safe_number(
+                        (
+                            (
+                                rep.get(
+                                    "phase_scores",
+                                    {}
+                                ).get(
+                                    (
+                                        rep.get(
+                                            "weakest_phase",
+                                            {}
+                                        )
+                                        or {}
+                                    ).get(
+                                        "phase"
+                                    ),
+                                    {}
+                                ).get(
+                                    "deductions",
+                                    []
+                                )
+                                or [
+                                    {}
+                                ]
+                            )[0].get(
+                                "lost_points"
+                            )
                         )
                     ),
                     "descent_time": self._safe_number(
