@@ -479,8 +479,18 @@ def _rep_timeline_line(
         else "OK"
     )
 
+    try:
+        rep_text = (
+            f"#{int(rep_number):02d}"
+        )
+    except (
+        TypeError,
+        ValueError
+    ):
+        rep_text = "#--"
+
     return (
-        f"#{int(rep_number):02d}  "
+        f"{rep_text}  "
         f"{view:<5}  "
         f"{status:<8}  "
         f"{score_text:>5}  "
@@ -658,30 +668,9 @@ def build_session_summary_frame(
         title_height=32
     )
 
-    valid_reps = [
-        rep
-        for rep in reps
-        if (
-            rep.get(
-                "analysis_valid",
-                True
-            )
-            and rep.get(
-                "set_valid",
-                True
-            )
-        )
+    timeline_reps = reps[
+        -10:
     ]
-
-    timeline_reps = (
-        valid_reps[
-            -10:
-        ]
-        if valid_reps
-        else reps[
-            -10:
-        ]
-    )
 
     timeline_lines = [
         "REP   VIEW   STATUS    SCORE   ISSUE"
