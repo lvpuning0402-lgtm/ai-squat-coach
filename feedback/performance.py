@@ -854,6 +854,8 @@ class SessionPerformanceAnalyzer:
                 "valid_reps": 0,
                 "excluded_reps": 0,
                 "average_score": 0.0,
+                "standard_passes": 0,
+                "standard_pass_rate": 0.0,
                 "best_rep": None,
                 "tempo_change": 0.0,
                 "quality_change": 0.0,
@@ -879,6 +881,8 @@ class SessionPerformanceAnalyzer:
                     self.reps
                 ),
                 "average_score": 0.0,
+                "standard_passes": 0,
+                "standard_pass_rate": 0.0,
                 "best_rep": None,
                 "tempo_change": 0.0,
                 "quality_change": 0.0,
@@ -942,6 +946,23 @@ class SessionPerformanceAnalyzer:
 
         average_score = mean(
             scores
+        )
+
+        standard_passes = sum(
+            1
+            for rep in valid_reps
+            if rep.get(
+                "standard_met",
+                False
+            )
+        )
+
+        standard_pass_rate = (
+            standard_passes
+            / len(
+                valid_reps
+            )
+            * 100.0
         )
 
         best_rep = max(
@@ -1068,6 +1089,11 @@ class SessionPerformanceAnalyzer:
             ),
             "average_score": round(
                 average_score,
+                1
+            ),
+            "standard_passes": standard_passes,
+            "standard_pass_rate": round(
+                standard_pass_rate,
                 1
             ),
             "best_rep": best_rep.get(
