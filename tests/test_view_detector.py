@@ -17,17 +17,22 @@ class ViewDetectorTests(unittest.TestCase):
             "SIDE"
         )
 
-        for _ in range(6):
+        transition_reached = False
+
+        for _ in range(12):
             view, _, raw = detector.update_from_ratio(
                 0.34
             )
 
-        self.assertEqual(
-            raw,
-            "TRANSITION"
+            if view == "TRANSITION":
+                transition_reached = True
+                break
+
+        self.assertTrue(
+            transition_reached
         )
         self.assertEqual(
-            view,
+            raw,
             "TRANSITION"
         )
 
@@ -45,26 +50,38 @@ class ViewDetectorTests(unittest.TestCase):
             "TRANSITION"
         )
 
-        for _ in range(17):
+        # 因为有 7 帧中值平滑 + 18 帧稳定确认，
+        # 刚进入正面区时不能立刻切换到 FRONT。
+        for _ in range(10):
             view, _, raw = detector.update_from_ratio(
                 0.56
             )
-
-        self.assertNotEqual(
-            view,
-            "FRONT"
-        )
-
-        view, _, raw = detector.update_from_ratio(
-            0.56
-        )
 
         self.assertEqual(
             raw,
             "FRONT"
         )
-        self.assertEqual(
+        self.assertNotEqual(
             view,
+            "FRONT"
+        )
+
+        front_reached = False
+
+        for _ in range(20):
+            view, _, raw = detector.update_from_ratio(
+                0.56
+            )
+
+            if view == "FRONT":
+                front_reached = True
+                break
+
+        self.assertTrue(
+            front_reached
+        )
+        self.assertEqual(
+            raw,
             "FRONT"
         )
 
@@ -120,6 +137,49 @@ class ViewDetectorTests(unittest.TestCase):
                 0.56
             ),
             "FRONT"
+        )
+
+    def test_front_to_side_also_passes_through_transition(self):
+        detector = ViewDetector()
+
+        for _ in range(10):
+            view, _, raw = detector.update_from_ratio(
+                0.56
+            )
+
+        self.assertEqual(
+            view,
+            "FRONT"
+        )
+
+        transition_reached = False
+
+        for _ in range(12):
+            view, _, raw = detector.update_from_ratio(
+                0.34
+            )
+
+            if view == "TRANSITION":
+                transition_reached = True
+                break
+
+        self.assertTrue(
+            transition_reached
+        )
+
+        side_reached = False
+
+        for _ in range(30):
+            view, _, raw = detector.update_from_ratio(
+                0.10
+            )
+
+            if view == "SIDE":
+                side_reached = True
+                break
+
+        self.assertTrue(
+            side_reached
         )
 
 
