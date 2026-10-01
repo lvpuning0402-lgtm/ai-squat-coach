@@ -349,15 +349,53 @@ def save_completed_rep(
         else "EXCLUDED"
     )
 
+    lens_text = ""
+
+    if analyzed.get(
+        "view"
+    ) == "FRONT":
+        lens = analyzed.get(
+            "competition_lenses",
+            {}
+        ).get(
+            "physique_control",
+            {}
+        )
+        if lens.get(
+            "score"
+        ) is not None:
+            lens_text = (
+                f" | Physique {lens['score']:.1f} "
+                f"{lens.get('grade', 'N/A')}"
+            )
+
+    elif analyzed.get(
+        "view"
+    ) == "SIDE":
+        lens = analyzed.get(
+            "competition_lenses",
+            {}
+        ).get(
+            "ipf_squat_proxy",
+            {}
+        )
+        if lens.get(
+            "score"
+        ) is not None:
+            lens_text = (
+                f" | IPF proxy {lens['score']:.1f} "
+                f"{lens.get('grade', 'N/A')}"
+            )
+
     print(
         "REP COMPLETE | "
         f"#{analyzed['rep']} | "
         f"{analyzed['view']} | "
-        f"Quality {analyzed['quality_score']:.1f} | "
+        f"Core {analyzed['quality_score']:.1f} | "
         f"Detail {analyzed.get('detail_score', 0.0):.1f} "
         f"{analyzed.get('detail_grade', 'N/A')} "
-        f"{analyzed.get('detail_label', 'INFO')} | "
-        f"{analyzed['quality_label']} | "
+        f"{analyzed.get('detail_label', 'INFO')}"
+        f"{lens_text} | "
         f"{confidence_text}"
     )
 
@@ -1357,6 +1395,21 @@ def draw_interface(
                 f"{last_completed_rep.get('detail_grade', 'N/A')}  "
                 f"{last_completed_rep.get('detail_label', 'INFO')} "
                 f"[{last_completed_rep.get('detail_confidence', 'LOW')}]"
+            ),
+            (
+                (
+                    "Physique: "
+                    f"{last_completed_rep.get('competition_lenses', {}).get('physique_control', {}).get('score', 0.0):.1f} "
+                    f"{last_completed_rep.get('competition_lenses', {}).get('physique_control', {}).get('grade', 'N/A')}"
+                )
+                if last_completed_rep.get(
+                    "view"
+                ) == "FRONT"
+                else (
+                    "IPF proxy score: "
+                    f"{last_completed_rep.get('competition_lenses', {}).get('ipf_squat_proxy', {}).get('score', 0.0):.1f} "
+                    f"{last_completed_rep.get('competition_lenses', {}).get('ipf_squat_proxy', {}).get('grade', 'N/A')}"
+                )
             ),
             (
                 "Phase score D/B/A: "
