@@ -45,7 +45,8 @@ class FrontSquatAnalyzer:
         self.standing_threshold = 0.050
 
         self.phase_confirm_frames = 3
-        self.standing_confirm_frames = 6
+        self.bottom_confirm_frames = 2
+        self.standing_confirm_frames = 5
         self.abort_confirm_frames = 6
 
         self.descending_frames = 0
@@ -72,6 +73,7 @@ class FrontSquatAnalyzer:
         self.current_max_center_shift = 0.0
         self.current_max_sync_error = 0.0
         self.current_max_ascent_sync_error = 0.0
+        self.depth_reached = False
         self.ascent_start_shoulder_descent = None
         self.ascent_start_hip_descent = None
         self.ascent_sync_buffer = deque(maxlen=5)
@@ -137,6 +139,7 @@ class FrontSquatAnalyzer:
         self.current_max_center_shift = 0.0
         self.current_max_sync_error = 0.0
         self.current_max_ascent_sync_error = 0.0
+        self.depth_reached = False
         self.ascent_start_shoulder_descent = None
         self.ascent_start_hip_descent = None
         self.ascent_sync_buffer.clear()
@@ -288,11 +291,9 @@ class FrontSquatAnalyzer:
             + right_knee_angle
         ) / 2
 
-        standing_like = (
-            average_knee_angle
-            >= 165.0
-        )
-
+        # Front-view 2D knee angle is strongly affected by stance width,
+        # valgus/varus and perspective. It is kept as a diagnostic value,
+        # but no longer gates rep counting.
         shoulder_width = max(
             abs(
                 right_shoulder[0]
@@ -424,7 +425,10 @@ class FrontSquatAnalyzer:
         # 用户已明显站直，但相对旧基准出现不可能的大幅上移、
         # 横向变化或身体尺度变化时，直接重新校准。
         baseline_mismatch = (
-            standing_like
+            self.phase == "STANDING"
+            and abs(
+                smooth_velocity
+            ) < 0.003
             and (
                 smooth_descent
                 < self.reanchor_negative_descent
@@ -458,11 +462,6 @@ class FrontSquatAnalyzer:
             sync_error = 0.0
             scale_ratio = 1.0
 
-        knee_bent = (
-            average_knee_angle
-            < 168.0
-        )
-
         if not baseline_reset:
             if self.phase == "STANDING":
                 self.update_baseline(
@@ -474,7 +473,6 @@ class FrontSquatAnalyzer:
                 start_signal = (
                     smooth_descent
                     > self.start_descent_threshold
-                    and knee_bent
                     and smooth_velocity
                     > 0.0005
                 )
@@ -501,65 +499,90 @@ class FrontSquatAnalyzer:
                     smooth_descent
                 )
 
-                returned_to_standing = (
-                    standing_like
-                    and smooth_descent
+                if (
+                    smooth_descent
+                    >= self.bottom_depth_threshold
+                ):
+                    self.depth_reached = True
+
+                returned_to_top = (
+                    smooth_descent
                     < (
                         self.standing_threshold
                         * 1.4
                     )
                 )
 
-                if returned_to_standing:
-                    self.abort_frames += 1
-                else:
-                    self.abort_frames = 0
+                # Once adequate body descent has been reached, a fast
+                # direction reversal is a valid bottom even if the user
+                # does not pause for several frames.
+                turning_up = (
+                    smooth_velocity
+                    < -0.0005
+                )
+
+                near_bottom = (
+                    abs(
+                        smooth_velocity
+                    )
+                    < 0.003
+                    or turning_up
+                )
 
                 if (
-                    self.abort_frames
-                    >= self.abort_confirm_frames
+                    self.depth_reached
+                    and near_bottom
                 ):
-                    rep_aborted = True
-
-                    self.reanchor_baseline(
-                        shoulder_center,
-                        hip_center,
-                        body_height
-                    )
-
-                    smooth_shoulder_descent = 0.0
-                    smooth_hip_descent = 0.0
-                    smooth_descent = 0.0
-                    smooth_velocity = 0.0
-                    smooth_center_shift = 0.0
-                    sync_error = 0.0
-
+                    self.bottom_frames += 1
                 else:
-                    bottom_signal = (
-                        smooth_descent
-                        > self.bottom_depth_threshold
-                        and (
-                            abs(
-                                smooth_velocity
-                            )
-                            < 0.0015
-                            or smooth_velocity
-                            < -0.0005
-                        )
-                    )
+                    self.bottom_frames = 0
 
-                    if bottom_signal:
-                        self.bottom_frames += 1
+                if (
+                    self.bottom_frames
+                    >= self.bottom_confirm_frames
+                ):
+                    self.bottom_start_time = now
+                    self.abort_frames = 0
+
+                    if turning_up:
+                        self.phase = "ASCENDING"
+                        self.ascent_start_time = now
+                        self.ascent_start_shoulder_descent = (
+                            smooth_shoulder_descent
+                        )
+                        self.ascent_start_hip_descent = (
+                            smooth_hip_descent
+                        )
+                        self.ascent_sync_buffer.clear()
                     else:
-                        self.bottom_frames = 0
+                        self.phase = "BOTTOM"
+
+                elif (
+                    not self.depth_reached
+                    and returned_to_top
+                ):
+                    self.abort_frames += 1
 
                     if (
-                        self.bottom_frames
-                        >= self.phase_confirm_frames
+                        self.abort_frames
+                        >= self.abort_confirm_frames
                     ):
-                        self.phase = "BOTTOM"
-                        self.bottom_start_time = now
-                        self.abort_frames = 0
+                        rep_aborted = True
+
+                        self.reanchor_baseline(
+                            shoulder_center,
+                            hip_center,
+                            body_height
+                        )
+
+                        smooth_shoulder_descent = 0.0
+                        smooth_hip_descent = 0.0
+                        smooth_descent = 0.0
+                        smooth_velocity = 0.0
+                        smooth_center_shift = 0.0
+                        sync_error = 0.0
+                else:
+                    self.abort_frames = 0
 
             elif self.phase == "BOTTOM":
                 self.current_max_descent = max(
@@ -635,11 +658,16 @@ class FrontSquatAnalyzer:
                         smooth_ascent_sync
                     )
 
-                if (
+                returned_to_standing = (
                     smooth_descent
                     < self.standing_threshold
-                    and standing_like
-                ):
+                    and smooth_shoulder_descent
+                    < 0.075
+                    and smooth_hip_descent
+                    < 0.095
+                )
+
+                if returned_to_standing:
                     self.standing_frames += 1
                 else:
                     self.standing_frames = 0
@@ -709,6 +737,7 @@ class FrontSquatAnalyzer:
             "combined_descent": smooth_descent,
             "descent_velocity": smooth_velocity,
             "average_knee_angle": average_knee_angle,
+            "depth_reached": self.depth_reached,
             "head_shift": smooth_head_shift,
             "shoulder_tilt": smooth_shoulder_tilt,
             "center_shift": smooth_center_shift,
