@@ -250,6 +250,7 @@ class SessionReportExporter:
             "detail_score",
             "detail_label",
             "detail_warnings",
+            "competition_flags",
             "descent_time",
             "bottom_time",
             "ascent_time",
@@ -355,6 +356,12 @@ class SessionReportExporter:
                     "detail_warnings": "|".join(
                         rep.get(
                             "detail_warnings",
+                            []
+                        )
+                    ),
+                    "competition_flags": "|".join(
+                        rep.get(
+                            "competition_flags",
                             []
                         )
                     ),
