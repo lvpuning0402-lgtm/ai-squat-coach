@@ -224,6 +224,171 @@ class SessionPerformanceAnalyzer:
             reasons
         )
 
+    @staticmethod
+    def _median(
+        values
+    ):
+        cleaned = sorted(
+            float(value)
+            for value in values
+            if value is not None
+        )
+
+        if not cleaned:
+            return None
+
+        middle = len(
+            cleaned
+        ) // 2
+
+        if len(
+            cleaned
+        ) % 2:
+            return cleaned[
+                middle
+            ]
+
+        return (
+            cleaned[
+                middle - 1
+            ]
+            + cleaned[
+                middle
+            ]
+        ) / 2
+
+    def _apply_relative_set_filter(
+        self,
+        reps
+    ):
+        """
+        在同一组内识别明显的相对异常 Rep。
+
+        只在同一视角至少有 4 次时启用，避免样本太少时过拟合。
+        """
+        for rep in reps:
+            rep[
+                "set_valid"
+            ] = True
+            rep[
+                "set_exclusion_reasons"
+            ] = []
+
+        for view in (
+            "FRONT",
+            "SIDE"
+        ):
+            view_reps = [
+                rep
+                for rep in reps
+                if (
+                    rep.get(
+                        "view"
+                    ) == view
+                    and rep.get(
+                        "analysis_valid",
+                        True
+                    )
+                )
+            ]
+
+            if len(
+                view_reps
+            ) < 4:
+                continue
+
+            tempo_median = self._median([
+                rep.get(
+                    "total_time"
+                )
+                for rep in view_reps
+            ])
+
+            rom_key = (
+                "rom"
+                if view == "FRONT"
+                else "rom_degrees"
+            )
+
+            rom_median = self._median([
+                rep.get(
+                    rom_key
+                )
+                for rep in view_reps
+            ])
+
+            for rep in view_reps:
+                reasons = []
+
+                total_time = rep.get(
+                    "total_time"
+                )
+
+                if (
+                    tempo_median
+                    and total_time
+                ):
+                    tempo_ratio = (
+                        float(
+                            total_time
+                        )
+                        / tempo_median
+                    )
+
+                    if (
+                        tempo_ratio < 0.45
+                        or tempo_ratio > 2.20
+                    ):
+                        reasons.append(
+                            "SET_TEMPO_OUTLIER"
+                        )
+
+                rom_value = rep.get(
+                    rom_key
+                )
+
+                if (
+                    rom_median
+                    and rom_value
+                ):
+                    rom_ratio = (
+                        float(
+                            rom_value
+                        )
+                        / rom_median
+                    )
+
+                    if (
+                        rom_ratio < 0.55
+                        or rom_ratio > 1.80
+                    ):
+                        reasons.append(
+                            "SET_ROM_OUTLIER"
+                        )
+
+                if reasons:
+                    rep[
+                        "set_valid"
+                    ] = False
+                    rep[
+                        "set_exclusion_reasons"
+                    ] = reasons
+
+        return [
+            rep
+            for rep in reps
+            if (
+                rep.get(
+                    "analysis_valid",
+                    True
+                )
+                and rep.get(
+                    "set_valid",
+                    True
+                )
+            )
+        ]
+
     def score_front_knee_tracking(
         self,
         rep_data,
@@ -373,18 +538,44 @@ class SessionPerformanceAnalyzer:
                     "DEPTH"
                 )
 
-            if trunk <= 17.0:
+            rom_degrees = max(
+                0.0,
+                180.0
+                - min_knee
+            )
+
+            trunk_rom_ratio = (
+                trunk
+                / max(
+                    rom_degrees,
+                    1.0
+                )
+            )
+
+            # 躯干前倾需要结合下蹲深度判断。
+            # 深蹲越深，自然前倾通常也会增加，不能使用固定 17/20 度
+            # 对所有深度一刀切。
+            if trunk_rom_ratio <= 0.40:
                 trunk_score = 100.0
-            elif trunk <= 20.0:
-                trunk_score = 85.0
+            elif trunk_rom_ratio <= 0.55:
+                progress = (
+                    trunk_rom_ratio
+                    - 0.40
+                ) / 0.15
+
+                trunk_score = (
+                    100.0
+                    - 15.0 * progress
+                )
             else:
                 trunk_score = self._clamp(
                     85.0
                     - (
-                        trunk
-                        - 20.0
-                    ) * 3.0
+                        trunk_rom_ratio
+                        - 0.55
+                    ) * 100.0
                 )
+
                 issues.append(
                     "TRUNK"
                 )
@@ -606,6 +797,14 @@ class SessionPerformanceAnalyzer:
             "component_scores": component_scores,
             "issues": issues,
             "tempo_total": total_time,
+            "trunk_rom_ratio": (
+                round(
+                    trunk_rom_ratio,
+                    3
+                )
+                if view == "SIDE"
+                else None
+            ),
             "analysis_valid": analysis_valid,
             "confidence_reasons": confidence_reasons
         }
@@ -644,14 +843,9 @@ class SessionPerformanceAnalyzer:
                 "top_issue": "NONE"
             }
 
-        valid_reps = [
-            rep
-            for rep in self.reps
-            if rep.get(
-                "analysis_valid",
-                True
-            )
-        ]
+        valid_reps = self._apply_relative_set_filter(
+            self.reps
+        )
 
         if not valid_reps:
             return {
@@ -834,6 +1028,20 @@ class SessionPerformanceAnalyzer:
                 )
                 - len(
                     valid_reps
+                )
+            ),
+            "relative_excluded_reps": sum(
+                1
+                for rep in self.reps
+                if (
+                    rep.get(
+                        "analysis_valid",
+                        True
+                    )
+                    and not rep.get(
+                        "set_valid",
+                        True
+                    )
                 )
             ),
             "average_score": round(
