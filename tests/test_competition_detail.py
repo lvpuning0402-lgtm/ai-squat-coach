@@ -154,6 +154,43 @@ class CompetitionDetailEvaluatorTests(unittest.TestCase):
             ],
             70.0
         )
+        self.assertGreater(
+            result[
+                "weighted_components"
+            ][
+                "knee_tracking"
+            ][
+                "lost_points"
+            ],
+            0.0
+        )
+        self.assertGreater(
+            len(
+                result[
+                    "detail_deductions"
+                ]
+            ),
+            0
+        )
+        self.assertEqual(
+            result[
+                "detail_deductions"
+            ][
+                0
+            ][
+                "name"
+            ],
+            max(
+                result[
+                    "weighted_components"
+                ].items(),
+                key=lambda item: item[
+                    1
+                ][
+                    "lost_points"
+                ]
+            )[0]
+        )
         self.assertIn(
             result[
                 "detail_grade"
@@ -301,6 +338,32 @@ class CompetitionDetailEvaluatorTests(unittest.TestCase):
             ][
                 "score"
             ]
+        )
+        self.assertGreater(
+            len(
+                result[
+                    "phase_scores"
+                ][
+                    "bottom"
+                ][
+                    "deductions"
+                ]
+            ),
+            0
+        )
+        self.assertGreater(
+            result[
+                "phase_scores"
+            ][
+                "bottom"
+            ][
+                "deductions"
+            ][
+                0
+            ][
+                "lost_points"
+            ],
+            0.0
         )
 
     def test_side_phase_scores_use_depth_trunk_stability_and_ascent_control(self):
@@ -517,6 +580,24 @@ class CompetitionDetailPerformanceIntegrationTests(unittest.TestCase):
         self.assertIsNotNone(
             summary[
                 "weakest_phase"
+            ]
+        )
+        self.assertGreater(
+            len(
+                summary[
+                    "top_detail_deductions"
+                ]
+            ),
+            0
+        )
+        self.assertIn(
+            summary[
+                "weakest_phase"
+            ][
+                "phase"
+            ],
+            summary[
+                "phase_deduction_summary"
             ]
         )
 
