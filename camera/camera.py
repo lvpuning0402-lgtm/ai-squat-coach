@@ -106,14 +106,14 @@ def update_side_leg_tracking(
         other_leg = "LEFT"
 
     emergency_switch = (
-        active_visibility < 0.25
-        and other_visibility > 0.55
+        active_visibility < 0.20
+        and other_visibility > 0.65
     )
 
     normal_switch = (
         other_visibility
         - active_visibility
-        >= 0.12
+        >= 0.18
     )
 
     if emergency_switch:
@@ -130,7 +130,7 @@ def update_side_leg_tracking(
             switch_candidate = other_leg
             switch_frames = 1
 
-        if switch_frames >= 6:
+        if switch_frames >= 10:
             active_leg = other_leg
             switch_candidate = None
             switch_frames = 0
@@ -698,6 +698,7 @@ def run_camera():
     side_switch_frames = 0
     side_leg_switched = False
 
+    last_view_state = None
     last_completed_rep = None
 
     display_mode_index = 0
@@ -816,6 +817,45 @@ def run_camera():
                     camera_height,
                     freeze=False
                 )
+
+                # 只要平滑后的原始视角进入中间区，
+                # 就立即停止 FRONT / SIDE 动作分析。
+                # 这样转身过程中不会沿用旧视角，更不会提前分析新视角。
+                if raw_view == "TRANSITION":
+                    effective_view = "TRANSITION"
+                else:
+                    effective_view = view
+
+                if effective_view != last_view_state:
+                    if effective_view == "TRANSITION":
+                        front_analyzer.reset()
+                        front_feedback.reset()
+                        side_analyzer.reset()
+
+                        side_switch_candidate = None
+                        side_switch_frames = 0
+                        side_leg_switched = False
+
+                    elif (
+                        last_view_state == "TRANSITION"
+                        and effective_view == "FRONT"
+                    ):
+                        front_analyzer.reset()
+                        front_feedback.reset()
+
+                    elif (
+                        last_view_state == "TRANSITION"
+                        and effective_view == "SIDE"
+                    ):
+                        side_analyzer.reset()
+
+                        side_switch_candidate = None
+                        side_switch_frames = 0
+                        side_leg_switched = False
+
+                    last_view_state = effective_view
+
+                view = effective_view
 
                 position = get_position_hint(
                     view,
