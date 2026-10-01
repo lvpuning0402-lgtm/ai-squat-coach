@@ -88,6 +88,86 @@ It does **not** claim that these are official IFBB/NPC squat scores, and it does
 not attempt to score muscle size, leanness, conditioning or bodybuilding
 placement from a squat video.
 
+## Weighted detail scoring
+
+The detail layer now uses **continuous component scores plus view-specific
+weights** instead of giving every item the same value.
+
+The weights are coaching-design choices for this project, not official
+federation score sheets.
+
+### FRONT_COACH weights
+
+- knee tracking: **24%**
+- ascent control: **18%**
+- lateral center balance: **14%**
+- hip/pelvis level: **12%**
+- left-right knee-angle symmetry: **12%**
+- shoulder level: **8%**
+- head control: **6%**
+- knee-height symmetry: **6%**
+
+This makes knee tracking and ascent coordination more influential than small
+presentation deviations while still allowing symmetry and balance to reduce
+the detail score.
+
+### SIDE_COACH weights
+
+- GENERAL_STRENGTH depth: **35%**
+- ascent control: **30%**
+- return-to-upright / knee-extension proxy: **20%**
+- head/posture control: **15%**
+
+Raw knee, hip, trunk and shin angles remain descriptive because a universal
+correct angle is not defensible across body proportions, stance widths and
+squat styles.
+
+### IPF_SQUAT_PROXY weights
+
+This score is shown separately from the general coaching score:
+
+- IPF depth landmark proxy: **45%**
+- ascent-control proxy: **30%**
+- return-to-upright / knee-extension proxy: **25%**
+
+It remains a partial webcam proxy and is not an official referee score.
+
+### PHYSIQUE_CONTROL_FRONT weights
+
+The IFBB/NPC-inspired visual-control lens is also scored separately:
+
+- hip/pelvis level: **22%**
+- shoulder level: **20%**
+- lateral center balance: **20%**
+- left-right knee-angle symmetry: **16%**
+- knee-height symmetry: **12%**
+- head control: **10%**
+
+This is a symmetry/balance/presentation-control score only. It is not a
+bodybuilding placement score.
+
+### Continuous scoring inside each band
+
+Secondary numeric checks no longer jump directly between fixed scores.
+
+- values inside the conservative PASS region score roughly **90–100**;
+- values between the PASS and REVIEW boundaries score roughly **70–90**;
+- values beyond the REVIEW boundary continue down toward roughly **40–70**.
+
+Boolean proxies such as depth still use a binary pass/review state because the
+underlying webcam measurement is already defined by a hard threshold.
+
+The overall detail grade is:
+
+- **A+**: 95–100
+- **A**: 90–94.9
+- **B+**: 85–89.9
+- **B**: 80–84.9
+- **C+**: 75–79.9
+- **C**: 70–74.9
+- **D**: 60–69.9
+- **E**: below 60
+
 ## Detail states
 
 Secondary detail checks use three states:
