@@ -280,6 +280,30 @@ detail deduction plus the main deduction inside the weakest phase.
 These values are **project score explanations**, not official IPF, IFBB or NPC
 penalty points.
 
+## Score coverage and confidence
+
+A score can look precise even when only part of the intended measurement set
+was available. The project therefore records **coverage** separately from
+movement quality.
+
+Coverage is the fraction of configured scoring weight for which a usable
+component score was available. Missing components are excluded from the
+weighted average, but the reduced coverage is reported instead of silently
+pretending that the score was fully observed.
+
+Current coverage confidence labels are:
+
+- **HIGH** — at least 90% of configured weight was observed;
+- **MEDIUM** — at least 70% was observed;
+- **LOW** — below 70%.
+
+For phase scores, frame coverage is also considered. Descent/ascent require
+more observed frames for HIGH confidence, while the bottom phase accepts fewer
+because a valid squat may reverse quickly without a pause.
+
+Confidence does **not** raise or lower the movement score. It tells the coach
+how strongly to trust and communicate that score.
+
 ## Detail states
 
 Secondary detail checks use three states:
