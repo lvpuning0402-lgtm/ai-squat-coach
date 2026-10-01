@@ -66,7 +66,8 @@ class SessionReportExporter:
         self,
         session_id,
         reps,
-        summary
+        summary,
+        session_type="TEST"
     ):
         issue_counter = Counter()
         view_counter = Counter()
@@ -154,6 +155,7 @@ class SessionReportExporter:
         return {
             "report_version": 1,
             "session_id": session_id,
+            "session_type": session_type,
             "generated_at": datetime.now().isoformat(
                 timespec="seconds"
             ),
@@ -348,12 +350,14 @@ class SessionReportExporter:
         self,
         session_id,
         reps,
-        summary
+        summary,
+        session_type="TEST"
     ):
         report = self.build_report(
             session_id,
             reps,
-            summary
+            summary,
+            session_type=session_type
         )
 
         timestamp = datetime.now().strftime(
