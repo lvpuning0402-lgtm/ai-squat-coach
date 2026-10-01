@@ -10,6 +10,7 @@ from feedback.front_feedback import FrontFeedback
 from feedback.performance import SessionPerformanceAnalyzer
 
 from data.database import TrainingDatabase
+from reports.session_report import SessionReportExporter
 
 
 DISPLAY_MODES = [
@@ -685,6 +686,8 @@ def run_camera():
 
     database = TrainingDatabase()
     session_id = database.start_session()
+
+    report_exporter = SessionReportExporter()
 
     window_name = "AI Sport Coach"
 
@@ -1398,6 +1401,23 @@ def run_camera():
             f"Trend {summary['trend']} | "
             f"Issue {summary['top_issue']}"
         )
+
+        try:
+            report_paths = report_exporter.export_session(
+                session_id,
+                performance.reps,
+                summary
+            )
+
+            print(
+                "SESSION REPORT | "
+                f"JSON {report_paths['json']} | "
+                f"CSV {report_paths['csv']}"
+            )
+        except Exception as error:
+            print(
+                f"Session report warning: {error}"
+            )
 
         cap.release()
         cv2.destroyAllWindows()
