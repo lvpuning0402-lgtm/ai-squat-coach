@@ -82,8 +82,127 @@ class FrontSquatAnalyzer:
         self.ascent_start_hip_descent = None
         self.ascent_sync_buffer = deque(maxlen=5)
         self.current_min_knee_angle = 180.0
+        self.phase_metrics = self._new_phase_metrics()
 
         self.last_rep = None
+
+    @staticmethod
+    def _new_phase_metrics():
+        template = {
+            "samples": 0,
+            "max_head_shift": 0.0,
+            "max_shoulder_tilt": 0.0,
+            "max_hip_tilt": 0.0,
+            "max_center_shift": 0.0,
+            "max_knee_angle_asymmetry": 0.0,
+            "max_sync_error": 0.0,
+            "max_ascent_sync_error": 0.0,
+            "min_knee_angle": 180.0,
+        }
+
+        return {
+            phase: dict(
+                template
+            )
+            for phase in (
+                "descent",
+                "bottom",
+                "ascent",
+            )
+        }
+
+    @staticmethod
+    def _phase_key(
+        phase
+    ):
+        return {
+            "DESCENDING": "descent",
+            "BOTTOM": "bottom",
+            "ASCENDING": "ascent",
+        }.get(
+            phase
+        )
+
+    def _record_phase_metrics(
+        self,
+        phase,
+        head_shift,
+        shoulder_tilt,
+        hip_tilt,
+        center_shift,
+        knee_angle_asymmetry,
+        sync_error,
+        ascent_sync_error,
+        knee_angle
+    ):
+        phase_key = self._phase_key(
+            phase
+        )
+
+        if phase_key is None:
+            return
+
+        metrics = self.phase_metrics[
+            phase_key
+        ]
+
+        metrics[
+            "samples"
+        ] += 1
+
+        for key, value in (
+            (
+                "max_head_shift",
+                head_shift
+            ),
+            (
+                "max_shoulder_tilt",
+                shoulder_tilt
+            ),
+            (
+                "max_hip_tilt",
+                hip_tilt
+            ),
+            (
+                "max_center_shift",
+                center_shift
+            ),
+            (
+                "max_knee_angle_asymmetry",
+                knee_angle_asymmetry
+            ),
+            (
+                "max_sync_error",
+                sync_error
+            ),
+        ):
+            metrics[
+                key
+            ] = max(
+                metrics[
+                    key
+                ],
+                value
+            )
+
+        if ascent_sync_error is not None:
+            metrics[
+                "max_ascent_sync_error"
+            ] = max(
+                metrics[
+                    "max_ascent_sync_error"
+                ],
+                ascent_sync_error
+            )
+
+        metrics[
+            "min_knee_angle"
+        ] = min(
+            metrics[
+                "min_knee_angle"
+            ],
+            knee_angle
+        )
 
     @staticmethod
     def midpoint(a, b):
@@ -150,6 +269,7 @@ class FrontSquatAnalyzer:
         self.ascent_start_hip_descent = None
         self.ascent_sync_buffer.clear()
         self.current_min_knee_angle = 180.0
+        self.phase_metrics = self._new_phase_metrics()
 
     def clear_motion_buffers(self):
         self.shoulder_buffer.clear()
@@ -246,7 +366,14 @@ class FrontSquatAnalyzer:
             ),
             "max_center_shift": self.current_max_center_shift,
             "max_sync_error": self.current_max_sync_error,
-            "max_ascent_sync_error": self.current_max_ascent_sync_error
+            "max_ascent_sync_error": self.current_max_ascent_sync_error,
+            "phase_metrics": {
+                phase: dict(
+                    metrics
+                )
+                for phase, metrics
+                in self.phase_metrics.items()
+            }
         }
 
         result = self.last_rep
@@ -765,6 +892,26 @@ class FrontSquatAnalyzer:
             )
             self.current_min_knee_angle = min(
                 self.current_min_knee_angle,
+                average_knee_angle
+            )
+
+            current_ascent_sync = (
+                median(
+                    self.ascent_sync_buffer
+                )
+                if self.ascent_sync_buffer
+                else None
+            )
+
+            self._record_phase_metrics(
+                self.phase,
+                smooth_head_shift,
+                smooth_shoulder_tilt,
+                smooth_hip_tilt,
+                smooth_center_shift,
+                smooth_knee_angle_asymmetry,
+                sync_error,
+                current_ascent_sync,
                 average_knee_angle
             )
 
