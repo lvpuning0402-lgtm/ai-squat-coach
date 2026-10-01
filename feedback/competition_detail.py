@@ -434,6 +434,17 @@ class CompetitionDetailEvaluator:
 
             weighted_total += contribution
 
+            max_contribution = (
+                100.0
+                * normalized_weight
+            )
+
+            lost_points = max(
+                0.0,
+                max_contribution
+                - contribution
+            )
+
             components[
                 key
             ] = {
@@ -447,8 +458,16 @@ class CompetitionDetailEvaluator:
                     normalized_weight,
                     3
                 ),
+                "max_contribution": round(
+                    max_contribution,
+                    2
+                ),
                 "contribution": round(
                     contribution,
+                    2
+                ),
+                "lost_points": round(
+                    lost_points,
                     2
                 )
             }
@@ -460,6 +479,51 @@ class CompetitionDetailEvaluator:
             ),
             components
         )
+
+    @staticmethod
+    def _deductions(
+        components,
+        limit=None
+    ):
+        deductions = [
+            {
+                "name": key,
+                "score": data.get(
+                    "score"
+                ),
+                "weight": data.get(
+                    "weight"
+                ),
+                "lost_points": data.get(
+                    "lost_points",
+                    0.0
+                ),
+            }
+            for key, data
+            in components.items()
+            if data.get(
+                "lost_points",
+                0.0
+            ) > 0.01
+        ]
+
+        deductions.sort(
+            key=lambda item: (
+                -item[
+                    "lost_points"
+                ],
+                item[
+                    "name"
+                ]
+            )
+        )
+
+        if limit is not None:
+            return deductions[
+                :limit
+            ]
+
+        return deductions
 
     @staticmethod
     def _phase_warnings(
@@ -785,6 +849,9 @@ class CompetitionDetailEvaluator:
                 ),
                 "checks": checks,
                 "weighted_components": components,
+                "deductions": self._deductions(
+                    components
+                ),
                 "warnings": self._phase_warnings(
                     checks
                 ),
@@ -1017,6 +1084,9 @@ class CompetitionDetailEvaluator:
                 ),
                 "checks": checks,
                 "weighted_components": components,
+                "deductions": self._deductions(
+                    components
+                ),
                 "warnings": self._phase_warnings(
                     checks
                 ),
@@ -1382,6 +1452,9 @@ class CompetitionDetailEvaluator:
                 detail_score
             ),
             "weighted_components": weighted_components,
+            "detail_deductions": self._deductions(
+                weighted_components
+            ),
             "phase_scores": phase_scores,
             "weakest_phase": self._weakest_phase(
                 phase_scores
@@ -1396,6 +1469,9 @@ class CompetitionDetailEvaluator:
                         physique_score
                     ),
                     "components": physique_components,
+                    "deductions": self._deductions(
+                        physique_components
+                    ),
                     "basis": [
                         "symmetry",
                         "balance",
@@ -1649,6 +1725,9 @@ class CompetitionDetailEvaluator:
                 detail_score
             ),
             "weighted_components": weighted_components,
+            "detail_deductions": self._deductions(
+                weighted_components
+            ),
             "phase_scores": phase_scores,
             "weakest_phase": self._weakest_phase(
                 phase_scores
@@ -1666,6 +1745,9 @@ class CompetitionDetailEvaluator:
                         ipf_score
                     ),
                     "components": ipf_components,
+                    "deductions": self._deductions(
+                        ipf_components
+                    ),
                     "partial_proxy": True,
                     "official_referee_decision": False,
                 },
@@ -1675,6 +1757,9 @@ class CompetitionDetailEvaluator:
                         physique_score
                     ),
                     "components": physique_components,
+                    "deductions": self._deductions(
+                        physique_components
+                    ),
                     "basis": [
                         "presentation_control",
                     ],
@@ -1707,6 +1792,7 @@ class CompetitionDetailEvaluator:
                 "detail_grade": "N/A",
                 "detail_label": "INFO",
                 "weighted_components": {},
+                "detail_deductions": [],
                 "phase_scores": {},
                 "weakest_phase": None,
                 "angle_metrics": {},
