@@ -211,6 +211,8 @@ class SessionReportExporter:
             "confidence_reasons",
             "set_valid",
             "set_exclusion_reasons",
+            "standard_profile",
+            "standard_met",
             "quality_score",
             "quality_label",
             "descent_time",
@@ -273,6 +275,12 @@ class SessionReportExporter:
                             "set_exclusion_reasons",
                             []
                         )
+                    ),
+                    "standard_profile": rep.get(
+                        "standard_profile"
+                    ),
+                    "standard_met": rep.get(
+                        "standard_met"
                     ),
                     "quality_score": self._safe_number(
                         rep.get(
