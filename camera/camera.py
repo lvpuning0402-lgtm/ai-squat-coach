@@ -812,6 +812,25 @@ def run_camera():
 
     display_mode_index = 0
 
+    session_diagnostics = {
+        "frames_total": 0,
+        "body_ready_frames": 0,
+        "front_frames": 0,
+        "side_frames": 0,
+        "transition_frames": 0,
+        "unknown_frames": 0,
+        "front_aborts": 0,
+        "side_aborts": 0,
+        "front_baseline_resets": 0,
+        "side_baseline_resets": 0,
+        "last_view": "UNKNOWN",
+        "last_front_phase": None,
+        "last_side_phase": None,
+        "max_front_descent": 0.0,
+        "min_side_knee_angle": None,
+        "max_side_depth_margin": None
+    }
+
     print(
         "Multi-angle squat analysis enabled"
     )
@@ -837,6 +856,10 @@ def run_camera():
 
             if not ret:
                 break
+
+            session_diagnostics[
+                "frames_total"
+            ] += 1
 
             camera_height = frame.shape[0]
             camera_width = frame.shape[1]
@@ -916,6 +939,10 @@ def run_camera():
             ]
 
             if ready:
+                session_diagnostics[
+                    "body_ready_frames"
+                ] += 1
+
                 (
                     view,
                     view_ratio,
@@ -969,6 +996,27 @@ def run_camera():
 
                 view = effective_view
 
+                session_diagnostics[
+                    "last_view"
+                ] = view
+
+                if view == "FRONT":
+                    session_diagnostics[
+                        "front_frames"
+                    ] += 1
+                elif view == "SIDE":
+                    session_diagnostics[
+                        "side_frames"
+                    ] += 1
+                elif view == "TRANSITION":
+                    session_diagnostics[
+                        "transition_frames"
+                    ] += 1
+                else:
+                    session_diagnostics[
+                        "unknown_frames"
+                    ] += 1
+
                 position = get_position_hint(
                     view,
                     raw_view
@@ -988,6 +1036,39 @@ def run_camera():
                     )
 
                     if front_result is not None:
+                        session_diagnostics[
+                            "last_front_phase"
+                        ] = front_result[
+                            "phase"
+                        ]
+                        session_diagnostics[
+                            "max_front_descent"
+                        ] = max(
+                            session_diagnostics[
+                                "max_front_descent"
+                            ],
+                            front_result.get(
+                                "combined_descent",
+                                0.0
+                            )
+                        )
+
+                        if front_result.get(
+                            "rep_aborted",
+                            False
+                        ):
+                            session_diagnostics[
+                                "front_aborts"
+                            ] += 1
+
+                        if front_result.get(
+                            "baseline_reset",
+                            False
+                        ):
+                            session_diagnostics[
+                                "front_baseline_resets"
+                            ] += 1
+
                         front_form = front_feedback.update(
                             left_hip["point"],
                             right_hip["point"],
@@ -1231,6 +1312,64 @@ def run_camera():
                         knee,
                         ankle
                     )
+
+                    session_diagnostics[
+                        "last_side_phase"
+                    ] = side_result[
+                        "phase"
+                    ]
+
+                    current_knee = side_result.get(
+                        "knee_angle"
+                    )
+                    if current_knee is not None:
+                        previous_min = session_diagnostics[
+                            "min_side_knee_angle"
+                        ]
+                        session_diagnostics[
+                            "min_side_knee_angle"
+                        ] = (
+                            current_knee
+                            if previous_min is None
+                            else min(
+                                previous_min,
+                                current_knee
+                            )
+                        )
+
+                    current_depth_margin = side_result.get(
+                        "depth_margin"
+                    )
+                    if current_depth_margin is not None:
+                        previous_max = session_diagnostics[
+                            "max_side_depth_margin"
+                        ]
+                        session_diagnostics[
+                            "max_side_depth_margin"
+                        ] = (
+                            current_depth_margin
+                            if previous_max is None
+                            else max(
+                                previous_max,
+                                current_depth_margin
+                            )
+                        )
+
+                    if side_result.get(
+                        "rep_aborted",
+                        False
+                    ):
+                        session_diagnostics[
+                            "side_aborts"
+                        ] += 1
+
+                    if side_result.get(
+                        "baseline_reset",
+                        False
+                    ):
+                        session_diagnostics[
+                            "side_baseline_resets"
+                        ] += 1
 
                     if (
                         side_result["rep_completed"]
@@ -1568,11 +1707,41 @@ def run_camera():
             )
 
         try:
+            if total_reps == 0:
+                if (
+                    session_diagnostics[
+                        "body_ready_frames"
+                    ] == 0
+                ):
+                    session_diagnostics[
+                        "zero_rep_reason"
+                    ] = "BODY_NOT_DETECTED"
+                elif (
+                    session_diagnostics[
+                        "front_frames"
+                    ] == 0
+                    and session_diagnostics[
+                        "side_frames"
+                    ] == 0
+                ):
+                    session_diagnostics[
+                        "zero_rep_reason"
+                    ] = "NO_STABLE_FRONT_OR_SIDE_VIEW"
+                else:
+                    session_diagnostics[
+                        "zero_rep_reason"
+                    ] = "NO_COMPLETED_REP"
+            else:
+                session_diagnostics[
+                    "zero_rep_reason"
+                ] = None
+
             report_paths = report_exporter.export_session(
                 session_id,
                 performance.reps,
                 summary,
-                session_type=session_type
+                session_type=session_type,
+                diagnostics=session_diagnostics
             )
 
             print(
