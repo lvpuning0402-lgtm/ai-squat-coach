@@ -2,6 +2,7 @@ import argparse
 
 from data.database import TrainingDatabase
 from reports.history_report import HistoryReportExporter
+from feedback.insights import ProgressInsightBuilder
 
 
 def format_change(
@@ -124,6 +125,37 @@ def print_history(
     print(
         f"Issue-rate change: "
         f"{format_change(progress['issue_rate_change'], '%')}"
+    )
+
+    feedback = ProgressInsightBuilder().build(
+        progress
+    )
+
+    print()
+    print(
+        "=== AI COACH PROGRESS ==="
+    )
+    print(
+        feedback[
+            "headline"
+        ]
+    )
+    print(
+        feedback[
+            "summary"
+        ]
+    )
+    print(
+        "当前重点："
+        + feedback[
+            "focus"
+        ]
+    )
+    print(
+        "下一次训练："
+        + feedback[
+            "next_action"
+        ]
     )
 
     exporter = HistoryReportExporter()
