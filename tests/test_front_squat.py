@@ -118,6 +118,7 @@ class FrontSquatAnalyzerTests(unittest.TestCase):
             )
 
         completed = False
+        completed_summary = None
 
         for _ in range(12):
             result = self.feed(
@@ -130,6 +131,9 @@ class FrontSquatAnalyzerTests(unittest.TestCase):
 
             if result["rep_completed"]:
                 completed = True
+                completed_summary = result[
+                    "rep_summary"
+                ]
 
         self.assertTrue(
             completed
@@ -137,6 +141,43 @@ class FrontSquatAnalyzerTests(unittest.TestCase):
         self.assertEqual(
             analyzer.count,
             1
+        )
+        self.assertIsNotNone(
+            completed_summary
+        )
+        self.assertIn(
+            "phase_metrics",
+            completed_summary
+        )
+        self.assertGreater(
+            completed_summary[
+                "phase_metrics"
+            ][
+                "descent"
+            ][
+                "samples"
+            ],
+            0
+        )
+        self.assertGreater(
+            completed_summary[
+                "phase_metrics"
+            ][
+                "bottom"
+            ][
+                "samples"
+            ],
+            0
+        )
+        self.assertGreater(
+            completed_summary[
+                "phase_metrics"
+            ][
+                "ascent"
+            ][
+                "samples"
+            ],
+            0
         )
 
     def test_front_partial_rep_still_aborts(self):
