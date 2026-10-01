@@ -50,6 +50,7 @@ class FrontFeedback:
         self.current_max_symmetry = 0.0
         self.phase_metrics = self._new_phase_metrics()
         self.last_rep_metrics = None
+        self.previous_stage = "STANDING"
 
     @staticmethod
     def _new_phase_metrics():
@@ -381,6 +382,18 @@ class FrontFeedback:
                 smooth_symmetry
             )
 
+            if (
+                self.previous_stage
+                == "DESCENDING"
+                and stage == "ASCENDING"
+            ):
+                self._record_phase_metrics(
+                    "BOTTOM",
+                    smooth_left,
+                    smooth_right,
+                    smooth_symmetry
+                )
+
             left_state = self.update_knee_state(
                 smooth_left,
                 "LEFT"
@@ -407,6 +420,8 @@ class FrontFeedback:
                 # 动作中途取消或分析器重新建立站立基准时，
                 # 不把残留峰值带到下一次 Rep。
                 self.reset_rep_metrics()
+
+        self.previous_stage = stage
 
         return {
             "left_state": left_state,
@@ -436,4 +451,5 @@ class FrontFeedback:
         self.symmetry_state = "OK"
 
         self.last_rep_metrics = None
+        self.previous_stage = "STANDING"
         self.reset_rep_metrics()
