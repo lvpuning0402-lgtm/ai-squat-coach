@@ -426,7 +426,8 @@ def draw_interface(
     detail_form_lines,
     debug_lines,
     last_completed_rep,
-    performance
+    performance,
+    session_type
 ):
     height = frame.shape[0]
     width = frame.shape[1]
@@ -546,12 +547,41 @@ def draw_interface(
                 f"Standard: {summary['standard_passes']}/"
                 f"{summary['valid_reps']} pass "
                 f"({summary['standard_pass_rate']:.0f}%)"
-            ),
-            f"Best rep: #{summary['best_rep']}",
-            f"Trend: {summary['trend']}",
-            f"Main issue: {summary['top_issue']}",
-            f"Consistency: {summary['consistency_label']}"
+            )
         ]
+
+        if summary.get(
+            "side_reps",
+            0
+        ) > 0:
+            set_lines.extend([
+                (
+                    f"Depth: {summary['side_depth_passes']}/"
+                    f"{summary['side_reps']} general "
+                    f"({summary['side_depth_pass_rate']:.0f}%)"
+                ),
+                (
+                    f"IPF proxy: "
+                    f"{summary['side_ipf_proxy_passes']}/"
+                    f"{summary['side_reps']} "
+                    f"({summary['side_ipf_proxy_rate']:.0f}%)"
+                )
+            ])
+
+        set_lines.extend([
+            f"Best rep: #{summary['best_rep']}",
+            f"Main issue: {summary['top_issue']}"
+        ])
+
+        if session_type == "TRAINING":
+            set_lines.extend([
+                f"Trend: {summary['trend']}",
+                f"Consistency: {summary['consistency_label']}"
+            ])
+        else:
+            set_lines.append(
+                "Trend/consistency: N/A in TEST"
+            )
 
     last_lines = []
     if last_completed_rep:
@@ -1382,7 +1412,8 @@ def run_camera():
                 detail_form_lines,
                 debug_lines,
                 last_completed_rep,
-                performance
+                performance,
+                session_type
             )
 
             draw_text(
@@ -1507,18 +1538,34 @@ def run_camera():
                 f"Database session save warning: {error}"
             )
 
-        print(
-            "SESSION SUMMARY | "
-            f"Reps {summary['reps']} | "
-            f"Average {summary['average_score']:.1f} | "
-            f"Valid {summary['valid_reps']}/{summary['reps']} | "
-            f"Standard {summary['standard_passes']}/"
-            f"{summary['valid_reps']} "
-            f"({summary['standard_pass_rate']:.1f}%) | "
-            f"Consistency {summary['consistency_label']} | "
-            f"Trend {summary['trend']} | "
-            f"Issue {summary['top_issue']}"
-        )
+        if session_type == "TRAINING":
+            print(
+                "SESSION SUMMARY | "
+                f"Reps {summary['reps']} | "
+                f"Average {summary['average_score']:.1f} | "
+                f"Valid {summary['valid_reps']}/{summary['reps']} | "
+                f"Standard {summary['standard_passes']}/"
+                f"{summary['valid_reps']} "
+                f"({summary['standard_pass_rate']:.1f}%) | "
+                f"Consistency {summary['consistency_label']} | "
+                f"Trend {summary['trend']} | "
+                f"Issue {summary['top_issue']}"
+            )
+        else:
+            print(
+                "TEST SUMMARY | "
+                f"Reps {summary['reps']} | "
+                f"Average {summary['average_score']:.1f} | "
+                f"Valid {summary['valid_reps']}/{summary['reps']} | "
+                f"Standard {summary['standard_passes']}/"
+                f"{summary['valid_reps']} "
+                f"({summary['standard_pass_rate']:.1f}%) | "
+                f"Depth {summary['side_depth_passes']}/"
+                f"{summary['side_reps']} general | "
+                f"IPF proxy {summary['side_ipf_proxy_passes']}/"
+                f"{summary['side_reps']} | "
+                f"Issue {summary['top_issue']}"
+            )
 
         try:
             report_paths = report_exporter.export_session(
