@@ -27,7 +27,9 @@ class FrontFeedback:
             "symmetry_bad_min"
         ]
 
-        self.required_frames = 7
+        # UI persistence only: four consecutive frames are enough to show
+        # KNEE IN. The actual standard tolerance is unchanged.
+        self.required_frames = 4
 
         self.left_bad_frames = 0
         self.right_bad_frames = 0
