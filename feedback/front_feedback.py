@@ -1,5 +1,7 @@
 from collections import deque
 
+from standards.squat_standard import VISION_TOLERANCE
+
 
 class FrontFeedback:
     def __init__(self):
@@ -7,15 +9,23 @@ class FrontFeedback:
         self.right_valgus_buffer = deque(maxlen=10)
         self.symmetry_buffer = deque(maxlen=10)
 
-        # 根据实际摄像头测试校准：
-        # 正常深蹲约 -0.33 / -0.52
-        # 故意内扣约 +0.25 / +0.19
-        self.valgus_bad_threshold = 0.15
-        self.valgus_good_threshold = 0.05
+        # 动作标准：膝盖应跟随足部方向（NSCA）。
+        # 下列数值是 2D 摄像头工程容差，不是个人校准值，
+        # 也不是医学诊断阈值。
+        self.valgus_good_threshold = VISION_TOLERANCE[
+            "knee_in_good_max"
+        ]
+        self.valgus_bad_threshold = VISION_TOLERANCE[
+            "knee_in_bad_min"
+        ]
 
-        # 正常不对称约 0.25，故意偏侧约 1.09
-        self.symmetry_good_threshold = 0.35
-        self.symmetry_bad_threshold = 0.60
+        # 左右对称性仅作为诊断指标，不作为全球动作规则。
+        self.symmetry_good_threshold = VISION_TOLERANCE[
+            "symmetry_good_max"
+        ]
+        self.symmetry_bad_threshold = VISION_TOLERANCE[
+            "symmetry_bad_min"
+        ]
 
         self.required_frames = 7
 
