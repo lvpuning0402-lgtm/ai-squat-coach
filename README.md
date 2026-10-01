@@ -39,6 +39,19 @@ Controls:
 
     python -m unittest discover -s tests
 
+## AI Coach feedback
+
+Completed sets now include a deterministic coaching summary:
+
+- what went well;
+- the main technique issue to focus on;
+- one concrete cue for the next set;
+- a separate formal progress summary for TRAINING sessions.
+
+The coach layer only explains metrics already measured by the pose system. It does not make medical diagnoses, and TEST sessions do not generate formal training-trend conclusions.
+
+Session JSON reports include a `coach_feedback` object. Formal history JSON reports include `progress_feedback`.
+
 ## Training history
 
     python history.py
