@@ -605,7 +605,7 @@ def build_session_summary_frame(
     summary,
     session_type,
     width=1080,
-    height=720
+    height=900
 ):
     frame = np.full(
         (
