@@ -59,6 +59,96 @@ def format_time(value):
     return f"{value:.2f}s"
 
 
+def update_side_leg_tracking(
+    active_leg,
+    left_visibility,
+    right_visibility,
+    switch_candidate,
+    switch_frames,
+    side_analyzer
+):
+    preferred_leg = (
+        "LEFT"
+        if left_visibility >= right_visibility
+        else "RIGHT"
+    )
+
+    switched = False
+
+    if active_leg is None:
+        active_leg = preferred_leg
+        switch_candidate = None
+        switch_frames = 0
+        side_analyzer.reset()
+
+        return (
+            active_leg,
+            switch_candidate,
+            switch_frames,
+            True
+        )
+
+    if side_analyzer.phase != "STANDING":
+        return (
+            active_leg,
+            None,
+            0,
+            False
+        )
+
+    if active_leg == "LEFT":
+        active_visibility = left_visibility
+        other_visibility = right_visibility
+        other_leg = "RIGHT"
+    else:
+        active_visibility = right_visibility
+        other_visibility = left_visibility
+        other_leg = "LEFT"
+
+    emergency_switch = (
+        active_visibility < 0.25
+        and other_visibility > 0.55
+    )
+
+    normal_switch = (
+        other_visibility
+        - active_visibility
+        >= 0.12
+    )
+
+    if emergency_switch:
+        active_leg = other_leg
+        switch_candidate = None
+        switch_frames = 0
+        side_analyzer.reset()
+        switched = True
+
+    elif normal_switch:
+        if switch_candidate == other_leg:
+            switch_frames += 1
+        else:
+            switch_candidate = other_leg
+            switch_frames = 1
+
+        if switch_frames >= 6:
+            active_leg = other_leg
+            switch_candidate = None
+            switch_frames = 0
+            side_analyzer.reset()
+            switched = True
+
+    else:
+        switch_candidate = None
+        switch_frames = 0
+
+    return (
+        active_leg,
+        switch_candidate,
+        switch_frames,
+        switched
+    )
+
+
 def prepare_performance_rep(
     rep_summary,
     performance
@@ -470,7 +560,7 @@ def draw_interface(
     # DEBUG 模式采用四角商务布局：
     # 左上 LIVE，右上 FORM，左下 DEBUG，右下 SET / LAST REP。
     # 中央动作主体区域完全留空。
-    debug_lines_to_draw = debug_lines[:8]
+    debug_lines_to_draw = debug_lines[:10]
 
     debug_width = max(
         220,
@@ -604,6 +694,10 @@ def run_camera():
     )
 
     active_leg = None
+    side_switch_candidate = None
+    side_switch_frames = 0
+    side_leg_switched = False
+
     last_completed_rep = None
 
     display_mode_index = 0
@@ -961,8 +1055,21 @@ def run_camera():
                         + right_ankle["visibility"]
                     ) / 3
 
-                    if left_visibility >= right_visibility:
-                        active_leg = "LEFT"
+                    (
+                        active_leg,
+                        side_switch_candidate,
+                        side_switch_frames,
+                        side_leg_switched
+                    ) = update_side_leg_tracking(
+                        active_leg,
+                        left_visibility,
+                        right_visibility,
+                        side_switch_candidate,
+                        side_switch_frames,
+                        side_analyzer
+                    )
+
+                    if active_leg == "LEFT":
                         shoulder = left_shoulder[
                             "point"
                         ]
@@ -976,7 +1083,6 @@ def run_camera():
                             "point"
                         ]
                     else:
-                        active_leg = "RIGHT"
                         shoulder = right_shoulder[
                             "point"
                         ]
@@ -1111,6 +1217,11 @@ def run_camera():
                             f"{active_leg}"
                         ),
                         (
+                            f"Visibility L/R: "
+                            f"{left_visibility:.2f} / "
+                            f"{right_visibility:.2f}"
+                        ),
+                        (
                             f"Knee angle: "
                             f"{side_result['knee_angle']:.1f}"
                         ),
@@ -1123,16 +1234,16 @@ def run_camera():
                             f"{side_result['knee_velocity']:.3f}"
                         ),
                         (
-                            f"Trunk lean: "
-                            f"{side_result['trunk_lean']:.1f}"
+                            f"Scale: "
+                            f"{side_result['body_scale_ratio']:.2f}"
                         ),
                         (
-                            f"Head forward: "
-                            f"{side_result['head_forward']:.2f}"
+                            f"Baseline reset: "
+                            f"{side_result['baseline_reset']}"
                         ),
                         (
-                            f"Sync value: "
-                            f"{side_result['shoulder_hip_sync']:.2f}"
+                            f"Leg switched: "
+                            f"{side_leg_switched}"
                         )
                     ]
 
