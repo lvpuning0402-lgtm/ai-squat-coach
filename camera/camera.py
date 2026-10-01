@@ -824,10 +824,12 @@ def run_camera():
     )
 
     previous_side_depth_margin = None
-    depth_capture_pending = None
-    depth_capture_raw_frame = None
+    depth_capture_pending = []
     depth_capture_index = 0
-    last_depth_capture_frame = -1000
+    last_depth_capture_frame = {
+        "GENERAL_PARALLEL": -1000,
+        "IPF_PROXY": -1000
+    }
     depth_capture_notice = None
     depth_capture_notice_frames = 0
 
@@ -1411,20 +1413,25 @@ def run_camera():
                                     "IPF_PROXY"
                                 )
 
-                        if (
-                            crossing_labels
-                            and (
+                        for crossing_label in crossing_labels:
+                            label_last_frame = (
+                                last_depth_capture_frame.get(
+                                    crossing_label,
+                                    -1000
+                                )
+                            )
+
+                            if (
                                 session_diagnostics[
                                     "frames_total"
                                 ]
-                                - last_depth_capture_frame
-                                >= 12
-                            )
-                        ):
-                            depth_capture_pending = {
-                                "label": "+".join(
-                                    crossing_labels
-                                ),
+                                - label_last_frame
+                                < 12
+                            ):
+                                continue
+
+                            depth_capture_pending.append({
+                                "label": crossing_label,
                                 "margin": float(
                                     current_depth_margin
                                 ),
@@ -1437,16 +1444,15 @@ def run_camera():
                                     side_result[
                                         "hip_angle"
                                     ]
-                                )
-                            }
-                            depth_capture_raw_frame = (
-                                frame.copy()
-                            )
-                            last_depth_capture_frame = (
-                                session_diagnostics[
-                                    "frames_total"
-                                ]
-                            )
+                                ),
+                                "pose_frame": frame.copy()
+                            })
+
+                            last_depth_capture_frame[
+                                crossing_label
+                            ] = session_diagnostics[
+                                "frames_total"
+                            ]
 
                         previous_side_depth_margin = float(
                             current_depth_margin
@@ -1664,67 +1670,71 @@ def run_camera():
                 thickness=1
             )
 
-            if depth_capture_pending is not None:
-                depth_capture_index += 1
-
-                timestamp = datetime.now().strftime(
-                    "%Y%m%d_%H%M%S_%f"
+            if depth_capture_pending:
+                captures_to_save = list(
+                    depth_capture_pending
                 )
+                depth_capture_pending.clear()
 
-                capture_stem = (
-                    f"session_{session_id}_depth_"
-                    f"{depth_capture_index:02d}_"
-                    f"{depth_capture_pending['label']}_"
-                    f"{timestamp}"
-                )
+                for capture in captures_to_save:
+                    depth_capture_index += 1
 
-                pose_path = (
-                    depth_capture_dir
-                    / f"{capture_stem}_pose.png"
-                )
-                ui_path = (
-                    depth_capture_dir
-                    / f"{capture_stem}_ui.png"
-                )
+                    timestamp = datetime.now().strftime(
+                        "%Y%m%d_%H%M%S_%f"
+                    )
 
-                if depth_capture_raw_frame is not None:
+                    capture_stem = (
+                        f"session_{session_id}_depth_"
+                        f"{depth_capture_index:02d}_"
+                        f"{capture['label']}_"
+                        f"{timestamp}"
+                    )
+
+                    pose_path = (
+                        depth_capture_dir
+                        / f"{capture_stem}_pose.png"
+                    )
+                    ui_path = (
+                        depth_capture_dir
+                        / f"{capture_stem}_ui.png"
+                    )
+
                     cv2.imwrite(
                         str(
                             pose_path
                         ),
-                        depth_capture_raw_frame
+                        capture[
+                            "pose_frame"
+                        ]
                     )
 
-                cv2.imwrite(
-                    str(
-                        ui_path
-                    ),
-                    frame
-                )
+                    cv2.imwrite(
+                        str(
+                            ui_path
+                        ),
+                        frame
+                    )
 
-                depth_capture_notice = (
-                    "AUTO CAPTURE "
-                    f"{depth_capture_pending['label']} "
-                    f"margin "
-                    f"{depth_capture_pending['margin']:+.3f}"
-                )
-                depth_capture_notice_frames = 45
+                    depth_capture_notice = (
+                        "AUTO CAPTURE "
+                        f"{capture['label']} "
+                        f"margin "
+                        f"{capture['margin']:+.3f}"
+                    )
+                    depth_capture_notice_frames = 45
 
-                print(
-                    "AUTO DEPTH CAPTURE | "
-                    f"{depth_capture_pending['label']} | "
-                    f"margin "
-                    f"{depth_capture_pending['margin']:+.3f} | "
-                    f"knee "
-                    f"{depth_capture_pending['knee_angle']:.1f} | "
-                    f"hip "
-                    f"{depth_capture_pending['hip_angle']:.1f} | "
-                    f"POSE {pose_path} | "
-                    f"UI {ui_path}"
-                )
-
-                depth_capture_pending = None
-                depth_capture_raw_frame = None
+                    print(
+                        "AUTO DEPTH CAPTURE | "
+                        f"{capture['label']} | "
+                        f"margin "
+                        f"{capture['margin']:+.3f} | "
+                        f"knee "
+                        f"{capture['knee_angle']:.1f} | "
+                        f"hip "
+                        f"{capture['hip_angle']:.1f} | "
+                        f"POSE {pose_path} | "
+                        f"UI {ui_path}"
+                    )
 
             if (
                 depth_capture_notice
