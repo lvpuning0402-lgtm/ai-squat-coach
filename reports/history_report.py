@@ -3,6 +3,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from feedback.insights import ProgressInsightBuilder
+
 
 class HistoryReportExporter:
     """
@@ -27,12 +29,17 @@ class HistoryReportExporter:
         history,
         progress
     ):
+        progress_feedback = ProgressInsightBuilder().build(
+            progress
+        )
+
         return {
             "report_version": 1,
             "generated_at": datetime.now().isoformat(
                 timespec="seconds"
             ),
             "progress": progress,
+            "progress_feedback": progress_feedback,
             "sessions": history,
             "note": (
                 "Training feedback only; "
