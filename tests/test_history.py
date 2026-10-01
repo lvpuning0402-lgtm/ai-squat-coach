@@ -563,6 +563,71 @@ class TrainingHistoryTests(unittest.TestCase):
                 90.0
             )
 
+    def test_relative_rom_outlier_is_excluded_from_history(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database = TrainingDatabase(
+                Path(
+                    temp_dir
+                )
+                / "training.db"
+            )
+
+            session_id = database.start_session(
+                session_type="TRAINING"
+            )
+
+            rom_values = [
+                0.129,
+                0.485,
+                0.476,
+                0.471,
+                0.450,
+                0.495,
+                0.468
+            ]
+
+            for index, rom in enumerate(
+                rom_values,
+                start=1
+            ):
+                rep = self.build_rep(
+                    index,
+                    95.0,
+                    "FRONT",
+                    []
+                )
+
+                rep["rom"] = rom
+                rep["max_center_shift"] = 0.05
+                rep["max_sync_error"] = 0.14
+                rep["max_left_inward"] = 0.0
+                rep["max_right_inward"] = 0.0
+
+                database.save_performance_rep(
+                    session_id,
+                    rep
+                )
+
+            database.finish_session(
+                session_id,
+                7,
+                7,
+                7
+            )
+
+            history = database.get_training_history(
+                limit=10
+            )
+
+            self.assertEqual(
+                history[0]["reps"],
+                6
+            )
+            self.assertEqual(
+                history[0]["excluded_reps"],
+                1
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
