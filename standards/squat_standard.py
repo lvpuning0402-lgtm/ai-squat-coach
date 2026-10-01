@@ -53,8 +53,19 @@ VISION_TOLERANCE = {
     "symmetry_bad_min": 0.30,
 
     # Shoulder / hip vertical desynchronization.
-    "sync_good_max": 0.15,
-    "sync_bad_min": 0.30,
+    # General-strength depth uses a small landmark tolerance because
+    # MediaPipe estimates joint centers while coaching guidance describes
+    # the thigh relative to the floor. -0.05 = hip landmark may remain up
+    # to 5% of thigh length above the knee landmark and still count as
+    # approximately parallel. IPF proxy remains strict at >= 0.0.
+    "general_depth_margin_min": -0.05,
+    "ipf_depth_margin_min": 0.0,
+
+    # Ascent coordination is measured as the difference between shoulder
+    # and hip progress fractions from bottom to standing. These are camera
+    # engineering tolerances, not anatomical cutoffs.
+    "ascent_progress_good_max": 0.15,
+    "ascent_progress_bad_min": 0.30,
 
     # Camera-position / tracking outlier limits.
     "front_center_outlier": 1.25,
