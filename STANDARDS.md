@@ -168,6 +168,80 @@ The overall detail grade is:
 - **D**: 60–69.9
 - **E**: below 60
 
+## Phase-specific scoring
+
+The project now scores **descent, bottom and ascent separately** in addition to
+the whole-rep detail score.
+
+This is intended to answer a more useful coaching question: not only *what*
+went wrong, but *when* in the squat it happened.
+
+### FRONT phases
+
+**Descent** emphasizes:
+
+- knee tracking;
+- lateral center balance;
+- pelvis level;
+- left/right knee-angle symmetry;
+- shoulder level;
+- head control;
+- knee-height symmetry.
+
+**Bottom** increases the emphasis on:
+
+- knee tracking;
+- center balance;
+- pelvis level;
+- left/right knee-angle symmetry.
+
+**Ascent** gives the largest weight to:
+
+- shoulder/hip ascent coordination;
+- knee tracking;
+- center balance;
+- pelvis and shoulder level.
+
+### SIDE phases
+
+**Descent** scores:
+
+- head/posture control;
+- trunk-angle stability within the phase.
+
+**Bottom** scores:
+
+- GENERAL_STRENGTH depth;
+- head/posture control;
+- trunk-angle stability.
+
+**Ascent** scores:
+
+- shoulder/hip ascent coordination;
+- return-to-upright / knee-extension proxy;
+- head/posture control;
+- trunk-angle stability.
+
+For SIDE, trunk stability means the **range of trunk lean within one phase**,
+not a requirement to hold one universal torso angle. Current project
+engineering tolerances are approximately:
+
+- PASS region: trunk-angle change up to 8 degrees within the phase;
+- WATCH region: between the PASS and REVIEW boundaries;
+- REVIEW boundary: 18 degrees of within-phase change.
+
+These are webcam coaching heuristics, not federation rules or medical limits.
+
+Each completed Rep stores:
+
+- raw phase metrics;
+- a score and grade for each available phase;
+- phase-specific component checks;
+- the weakest-scoring phase.
+
+The set summary averages phase scores across valid Reps and identifies the
+lowest-scoring phase for the AI Coach.
+
 ## Detail states
 
 Secondary detail checks use three states:
