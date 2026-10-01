@@ -187,6 +187,68 @@ class SessionInsightBuilderTests(unittest.TestCase):
         )
 
 
+    def test_detail_warning_becomes_coach_focus_when_standard_passes(self):
+        builder = SessionInsightBuilder()
+
+        reps = [
+            {
+                "rep": 1,
+                "view": "FRONT",
+                "analysis_valid": True,
+                "set_valid": True,
+                "standard_met": True,
+                "standard_checks": {
+                    "knee_tracking": True,
+                    "ascent_control": True
+                },
+                "issues": [],
+                "detail_warnings": [
+                    "shoulder_level"
+                ]
+            },
+            {
+                "rep": 2,
+                "view": "FRONT",
+                "analysis_valid": True,
+                "set_valid": True,
+                "standard_met": True,
+                "standard_checks": {
+                    "knee_tracking": True,
+                    "ascent_control": True
+                },
+                "issues": [],
+                "detail_warnings": [
+                    "shoulder_level"
+                ]
+            }
+        ]
+
+        result = builder.build(
+            reps,
+            {
+                "excluded_reps": 0
+            },
+            session_type="TRAINING"
+        )
+
+        self.assertEqual(
+            result["main_issue"],
+            "NONE"
+        )
+        self.assertEqual(
+            result["detail_focus"],
+            "shoulder_level"
+        )
+        self.assertIn(
+            "肩线水平",
+            result["headline"]
+        )
+        self.assertIn(
+            "肩线",
+            result["next_action"]
+        )
+
+
 class ProgressInsightBuilderTests(unittest.TestCase):
     def test_progress_feedback_uses_formal_baseline_change(self):
         builder = ProgressInsightBuilder()
