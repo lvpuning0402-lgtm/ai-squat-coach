@@ -71,6 +71,10 @@ class FrontSquatAnalyzer:
         self.current_max_shoulder_tilt = 0.0
         self.current_max_center_shift = 0.0
         self.current_max_sync_error = 0.0
+        self.current_max_ascent_sync_error = 0.0
+        self.ascent_start_shoulder_descent = None
+        self.ascent_start_hip_descent = None
+        self.ascent_sync_buffer = deque(maxlen=5)
         self.current_min_knee_angle = 180.0
 
         self.last_rep = None
@@ -132,6 +136,10 @@ class FrontSquatAnalyzer:
         self.current_max_shoulder_tilt = 0.0
         self.current_max_center_shift = 0.0
         self.current_max_sync_error = 0.0
+        self.current_max_ascent_sync_error = 0.0
+        self.ascent_start_shoulder_descent = None
+        self.ascent_start_hip_descent = None
+        self.ascent_sync_buffer.clear()
         self.current_min_knee_angle = 180.0
 
     def clear_motion_buffers(self):
@@ -140,6 +148,7 @@ class FrontSquatAnalyzer:
         self.combined_buffer.clear()
         self.velocity_buffer.clear()
         self.center_shift_buffer.clear()
+        self.ascent_sync_buffer.clear()
 
         self.previous_descent = 0.0
 
@@ -219,7 +228,8 @@ class FrontSquatAnalyzer:
             "max_head_shift": self.current_max_head_shift,
             "max_shoulder_tilt": self.current_max_shoulder_tilt,
             "max_center_shift": self.current_max_center_shift,
-            "max_sync_error": self.current_max_sync_error
+            "max_sync_error": self.current_max_sync_error,
+            "max_ascent_sync_error": self.current_max_ascent_sync_error
         }
 
         result = self.last_rep
@@ -568,9 +578,63 @@ class FrontSquatAnalyzer:
                 ):
                     self.phase = "ASCENDING"
                     self.ascent_start_time = now
+                    self.ascent_start_shoulder_descent = (
+                        smooth_shoulder_descent
+                    )
+                    self.ascent_start_hip_descent = (
+                        smooth_hip_descent
+                    )
+                    self.ascent_sync_buffer.clear()
                     self.abort_frames = 0
 
             elif self.phase == "ASCENDING":
+                if (
+                    self.ascent_start_shoulder_descent
+                    is not None
+                    and self.ascent_start_hip_descent
+                    is not None
+                ):
+                    shoulder_range = max(
+                        abs(
+                            self.ascent_start_shoulder_descent
+                        ),
+                        0.02
+                    )
+                    hip_range = max(
+                        abs(
+                            self.ascent_start_hip_descent
+                        ),
+                        0.02
+                    )
+
+                    shoulder_progress = (
+                        self.ascent_start_shoulder_descent
+                        - smooth_shoulder_descent
+                    ) / shoulder_range
+
+                    hip_progress = (
+                        self.ascent_start_hip_descent
+                        - smooth_hip_descent
+                    ) / hip_range
+
+                    ascent_sync_error = abs(
+                        shoulder_progress
+                        - hip_progress
+                    )
+
+                    self.ascent_sync_buffer.append(
+                        ascent_sync_error
+                    )
+
+                    smooth_ascent_sync = median(
+                        self.ascent_sync_buffer
+                    )
+
+                    self.current_max_ascent_sync_error = max(
+                        self.current_max_ascent_sync_error,
+                        smooth_ascent_sync
+                    )
+
                 if (
                     smooth_descent
                     < self.standing_threshold
@@ -649,6 +713,13 @@ class FrontSquatAnalyzer:
             "shoulder_tilt": smooth_shoulder_tilt,
             "center_shift": smooth_center_shift,
             "shoulder_hip_sync": sync_error,
+            "ascent_sync_error": (
+                median(
+                    self.ascent_sync_buffer
+                )
+                if self.ascent_sync_buffer
+                else None
+            ),
             "body_scale_ratio": scale_ratio,
             "rom": self.current_max_descent,
             "phase_elapsed": phase_elapsed,
