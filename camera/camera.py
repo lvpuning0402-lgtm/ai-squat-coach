@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from pose.detector import PoseDetector
 from pose.view_detector import ViewDetector
@@ -418,6 +419,376 @@ def draw_panel(
     return panel_height
 
 
+def _rep_timeline_line(
+    rep
+):
+    rep_number = rep.get(
+        "rep",
+        "-"
+    )
+    view = rep.get(
+        "view",
+        "UNKNOWN"
+    )
+
+    valid = (
+        rep.get(
+            "analysis_valid",
+            True
+        )
+        and rep.get(
+            "set_valid",
+            True
+        )
+    )
+
+    if not valid:
+        status = "EXCLUDED"
+    elif rep.get(
+        "standard_met",
+        False
+    ):
+        status = "PASS"
+    else:
+        status = "REVIEW"
+
+    score = rep.get(
+        "quality_score"
+    )
+
+    score_text = (
+        f"{float(score):.1f}"
+        if score is not None
+        else "--"
+    )
+
+    issues = rep.get(
+        "issues",
+        []
+    )
+
+    issue_text = (
+        ", ".join(
+            str(issue).replace(
+                "_",
+                " "
+            )
+            for issue in issues
+        )
+        if issues
+        else "OK"
+    )
+
+    return (
+        f"#{int(rep_number):02d}  "
+        f"{view:<5}  "
+        f"{status:<8}  "
+        f"{score_text:>5}  "
+        f"{issue_text}"
+    )
+
+
+def build_session_summary_frame(
+    reps,
+    summary,
+    session_type,
+    width=1080,
+    height=720
+):
+    frame = np.full(
+        (
+            height,
+            width,
+            3
+        ),
+        24,
+        dtype=np.uint8
+    )
+
+    coach_feedback = SessionInsightBuilder().build(
+        reps,
+        summary,
+        session_type=session_type
+    )
+
+    margin = 28
+    gap = 18
+    column_width = (
+        width
+        - margin * 2
+        - gap
+    ) // 2
+
+    draw_text(
+        frame,
+        "AI SPORT COACH",
+        margin,
+        44,
+        scale=0.82,
+        thickness=2
+    )
+
+    draw_text(
+        frame,
+        "SESSION COMPLETE",
+        margin,
+        74,
+        scale=0.52,
+        thickness=1
+    )
+
+    draw_text(
+        frame,
+        f"{session_type}  |  {STANDARD_NAME}",
+        width - 330,
+        48,
+        scale=0.46,
+        thickness=1
+    )
+
+    result_lines = [
+        (
+            f"Valid reps: "
+            f"{summary.get('valid_reps', 0)}/"
+            f"{summary.get('reps', 0)}"
+        ),
+        (
+            f"Average score: "
+            f"{summary.get('average_score', 0.0):.1f}"
+        ),
+        (
+            f"Standard pass: "
+            f"{summary.get('standard_passes', 0)}/"
+            f"{summary.get('valid_reps', 0)} "
+            f"({summary.get('standard_pass_rate', 0.0):.0f}%)"
+        ),
+        (
+            f"Best rep: #"
+            f"{summary.get('best_rep') or '--'}"
+        ),
+    ]
+
+    if summary.get(
+        "side_reps",
+        0
+    ) > 0:
+        result_lines.extend([
+            (
+                f"General depth: "
+                f"{summary.get('side_depth_passes', 0)}/"
+                f"{summary.get('side_reps', 0)} "
+                f"({summary.get('side_depth_pass_rate', 0.0):.0f}%)"
+            ),
+            (
+                f"IPF proxy: "
+                f"{summary.get('side_ipf_proxy_passes', 0)}/"
+                f"{summary.get('side_reps', 0)} "
+                f"({summary.get('side_ipf_proxy_rate', 0.0):.0f}%)"
+            ),
+        ])
+
+    if session_type == "TRAINING":
+        result_lines.extend([
+            (
+                f"Consistency: "
+                f"{summary.get('consistency_label', 'NO DATA')}"
+            ),
+            (
+                f"Set trend: "
+                f"{summary.get('trend', 'NO DATA')}"
+            ),
+        ])
+    else:
+        result_lines.append(
+            "TEST protocol: no formal trend"
+        )
+
+    draw_panel(
+        frame,
+        "RESULT",
+        result_lines,
+        margin,
+        104,
+        column_width,
+        line_height=25,
+        title_height=32
+    )
+
+    coach_lines = [
+        coach_feedback[
+            "ui_lines"
+        ][0],
+        coach_feedback[
+            "ui_lines"
+        ][1],
+        coach_feedback[
+            "ui_lines"
+        ][2],
+        (
+            f"Confidence: "
+            f"{coach_feedback.get('confidence', 'LOW')}"
+        ),
+    ]
+
+    if coach_feedback.get(
+        "main_issue",
+        "NONE"
+    ) != "NONE":
+        coach_lines.append(
+            (
+                f"Issue rate: "
+                f"{coach_feedback.get('main_issue_rate', 0.0):.0f}%"
+            )
+        )
+    else:
+        coach_lines.append(
+            "No repeated standard issue"
+        )
+
+    draw_panel(
+        frame,
+        "AI COACH",
+        coach_lines,
+        margin
+        + column_width
+        + gap,
+        104,
+        column_width,
+        line_height=25,
+        title_height=32
+    )
+
+    valid_reps = [
+        rep
+        for rep in reps
+        if (
+            rep.get(
+                "analysis_valid",
+                True
+            )
+            and rep.get(
+                "set_valid",
+                True
+            )
+        )
+    ]
+
+    timeline_reps = (
+        valid_reps[
+            -10:
+        ]
+        if valid_reps
+        else reps[
+            -10:
+        ]
+    )
+
+    timeline_lines = [
+        "REP   VIEW   STATUS    SCORE   ISSUE"
+    ]
+
+    timeline_lines.extend(
+        _rep_timeline_line(
+            rep
+        )
+        for rep in timeline_reps
+    )
+
+    if len(
+        reps
+    ) > len(
+        timeline_reps
+    ):
+        timeline_lines.append(
+            (
+                f"Showing last "
+                f"{len(timeline_reps)} "
+                f"of {len(reps)} reps"
+            )
+        )
+
+    timeline_y = 354
+
+    draw_panel(
+        frame,
+        "REP TIMELINE",
+        timeline_lines,
+        margin,
+        timeline_y,
+        width - margin * 2,
+        line_height=22,
+        title_height=32
+    )
+
+    draw_text(
+        frame,
+        "Q / ESC / ENTER = CLOSE",
+        margin,
+        height - 20,
+        scale=0.40,
+        thickness=1
+    )
+
+    return frame
+
+
+def show_session_summary_screen(
+    window_name,
+    reps,
+    summary,
+    session_type
+):
+    summary_frame = build_session_summary_frame(
+        reps,
+        summary,
+        session_type
+    )
+
+    try:
+        cv2.imshow(
+            window_name,
+            summary_frame
+        )
+
+        print(
+            "训练总结页面已显示，"
+            "按 Q / ESC / Enter 关闭。"
+        )
+
+        while True:
+            key = (
+                cv2.waitKey(
+                    50
+                )
+                & 0xFF
+            )
+
+            if key in (
+                ord("q"),
+                ord("Q"),
+                27,
+                10,
+                13
+            ):
+                break
+
+            try:
+                visible = cv2.getWindowProperty(
+                    window_name,
+                    cv2.WND_PROP_VISIBLE
+                )
+
+                if visible < 1:
+                    break
+            except cv2.error:
+                break
+
+    except cv2.error as error:
+        print(
+            f"Session summary screen warning: {error}"
+        )
+
+
 def draw_interface(
     frame,
     display_mode,
@@ -830,6 +1201,7 @@ def run_camera():
     last_view_state = None
     last_completed_rep = None
 
+    user_requested_exit = False
     display_mode_index = 0
 
     depth_capture_dir = Path(
@@ -885,7 +1257,7 @@ def run_camera():
         "按 T 切换 TEST / TRAINING（完成第一个 Rep 前）"
     )
     print(
-        "按 Q / ESC 退出"
+        "按 Q / ESC 结束并查看本组总结"
     )
 
     try:
@@ -1830,6 +2202,7 @@ def run_camera():
                 ord("Q"),
                 27
             ):
+                user_requested_exit = True
                 break
 
     finally:
@@ -2081,6 +2454,14 @@ def run_camera():
             print(
                 "TEST SESSION | "
                 "Excluded from formal training progress."
+            )
+
+        if user_requested_exit:
+            show_session_summary_screen(
+                window_name,
+                performance.reps,
+                summary,
+                session_type
             )
 
         cap.release()
