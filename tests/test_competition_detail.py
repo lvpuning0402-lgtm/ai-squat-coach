@@ -133,6 +133,20 @@ class CompetitionDetailPerformanceIntegrationTests(unittest.TestCase):
             summary["top_detail_warning"],
             "NONE"
         )
+        self.assertGreaterEqual(
+            summary["detail_watch_events"],
+            1
+        )
+        self.assertEqual(
+            summary["detail_review_events"],
+            0
+        )
+        self.assertGreaterEqual(
+            len(
+                summary["top_detail_warnings"]
+            ),
+            1
+        )
 
 
 if __name__ == "__main__":
