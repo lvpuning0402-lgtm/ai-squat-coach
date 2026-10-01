@@ -472,6 +472,69 @@ class SessionPerformanceAnalyzerTests(unittest.TestCase):
             "DEPTH"
         )
 
+    def test_set_summary_reports_side_depth_rates(self):
+        analyzer = SessionPerformanceAnalyzer()
+
+        samples = [
+            (True, True),
+            (True, False),
+            (False, False),
+            (False, False)
+        ]
+
+        for index, (
+            general_depth,
+            ipf_depth
+        ) in enumerate(
+            samples,
+            start=1
+        ):
+            analyzer.analyze_rep({
+                "rep": index,
+                "view": "SIDE",
+                "total_time": 2.0,
+                "min_knee_angle": 90.0,
+                "rom_degrees": 90.0,
+                "max_trunk_lean": 30.0,
+                "max_head_forward": 0.25,
+                "max_sync_error": 0.20,
+                "max_ascent_sync_error": 0.05,
+                "max_depth_margin": (
+                    0.05
+                    if ipf_depth
+                    else (
+                        -0.02
+                        if general_depth
+                        else -0.20
+                    )
+                ),
+                "depth_standard_met": general_depth,
+                "ipf_depth_proxy_met": ipf_depth
+            })
+
+        summary = analyzer.get_set_summary()
+
+        self.assertEqual(
+            summary["side_reps"],
+            4
+        )
+        self.assertEqual(
+            summary["side_depth_passes"],
+            2
+        )
+        self.assertEqual(
+            summary["side_depth_pass_rate"],
+            50.0
+        )
+        self.assertEqual(
+            summary["side_ipf_proxy_passes"],
+            1
+        )
+        self.assertEqual(
+            summary["side_ipf_proxy_rate"],
+            25.0
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
