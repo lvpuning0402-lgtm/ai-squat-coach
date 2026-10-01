@@ -86,6 +86,126 @@ class SessionPerformanceAnalyzerTests(unittest.TestCase):
             "KNEE_TRACKING"
         )
 
+    def test_timing_outlier_is_excluded_from_set_summary(self):
+        analyzer = SessionPerformanceAnalyzer()
+
+        valid = analyzer.analyze_rep({
+            "rep": 1,
+            "view": "FRONT",
+            "total_time": 1.5,
+            "descent_time": 0.8,
+            "bottom_time": 0.1,
+            "ascent_time": 0.6,
+            "rom": 0.43,
+            "max_head_shift": 0.05,
+            "max_shoulder_tilt": 0.05,
+            "max_center_shift": 0.05,
+            "max_sync_error": 0.10,
+            "max_left_inward": 0.0,
+            "max_right_inward": 0.0,
+            "max_symmetry_value": 0.15
+        })
+
+        invalid = analyzer.analyze_rep({
+            "rep": 2,
+            "view": "FRONT",
+            "total_time": 102.0,
+            "descent_time": 95.0,
+            "bottom_time": 0.1,
+            "ascent_time": 6.9,
+            "rom": 0.30,
+            "max_head_shift": 0.10,
+            "max_shoulder_tilt": 0.20,
+            "max_center_shift": 1.10,
+            "max_sync_error": 0.20,
+            "max_left_inward": 0.30,
+            "max_right_inward": 0.40,
+            "max_symmetry_value": 0.20
+        })
+
+        self.assertTrue(
+            valid["analysis_valid"]
+        )
+        self.assertFalse(
+            invalid["analysis_valid"]
+        )
+        self.assertIn(
+            "TEMPO_OUTLIER",
+            invalid["confidence_reasons"]
+        )
+
+        summary = analyzer.get_set_summary()
+
+        self.assertEqual(
+            summary["reps"],
+            2
+        )
+        self.assertEqual(
+            summary["valid_reps"],
+            1
+        )
+        self.assertEqual(
+            summary["excluded_reps"],
+            1
+        )
+        self.assertEqual(
+            summary["best_rep"],
+            1
+        )
+
+    def test_consistency_uses_tempo_and_front_rom(self):
+        analyzer = SessionPerformanceAnalyzer()
+
+        samples = [
+            (1.52, 0.440),
+            (1.36, 0.408),
+            (1.58, 0.436),
+            (1.36, 0.446)
+        ]
+
+        for index, (
+            total_time,
+            rom
+        ) in enumerate(
+            samples,
+            start=1
+        ):
+            analyzer.analyze_rep({
+                "rep": index,
+                "view": "FRONT",
+                "total_time": total_time,
+                "descent_time": 0.85,
+                "bottom_time": 0.10,
+                "ascent_time": 0.50,
+                "rom": rom,
+                "max_head_shift": 0.05,
+                "max_shoulder_tilt": 0.07,
+                "max_center_shift": 0.04,
+                "max_sync_error": 0.14,
+                "max_left_inward": 0.0,
+                "max_right_inward": 0.0,
+                "max_symmetry_value": 0.15
+            })
+
+        summary = analyzer.get_set_summary()
+
+        self.assertEqual(
+            summary["valid_reps"],
+            4
+        )
+        self.assertLess(
+            summary["front_rom_cv"],
+            5.0
+        )
+        self.assertLess(
+            summary["tempo_cv"],
+            10.0
+        )
+        self.assertEqual(
+            summary["consistency_label"],
+            "CONSISTENT"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
