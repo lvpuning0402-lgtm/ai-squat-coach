@@ -61,6 +61,11 @@ depth and ascent control. Separate IPF proxy and physique-control scores use
 their own weights. The exact project weights and score bands are documented in
 `STANDARDS.md`.
 
+Each completed squat is also split into **descent / bottom / ascent** scores.
+The report stores the phase-specific checks and identifies the weakest phase,
+so feedback can say whether the main loss of control happened on the way down,
+at the bottom, or during the ascent.
+
 It keeps the hard squat standard separate from additional coaching detail:
 
 - FRONT: shoulder level, hip level, center balance, head control, left/right knee-angle symmetry and knee-height symmetry;
