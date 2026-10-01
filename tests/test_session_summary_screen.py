@@ -4,6 +4,7 @@ from camera.camera import (
     _rep_detail_state,
     _rep_timeline_line,
     build_session_summary_frame,
+    format_deduction,
     format_phase_scores,
 )
 
@@ -49,6 +50,25 @@ class SessionSummaryScreenTests(unittest.TestCase):
             "detail_watch_reps": 1,
             "detail_watch_events": 1,
             "detail_review_events": 1,
+            "top_detail_deductions": [
+                {
+                    "name": "center_balance",
+                    "average_lost_points": 3.4,
+                    "total_lost_points": 6.8,
+                    "affected_reps": 2,
+                    "occurrences": 2
+                }
+            ],
+            "phase_deduction_summary": {
+                "bottom": [
+                    {
+                        "name": "center_balance",
+                        "average_lost_points": 4.2,
+                        "total_lost_points": 8.4,
+                        "occurrences": 2
+                    }
+                ]
+            },
             "phase_score_averages": {
                 "descent": 88.0,
                 "bottom": 76.0,
@@ -100,6 +120,28 @@ class SessionSummaryScreenTests(unittest.TestCase):
                 frame.max()
             ),
             24
+        )
+
+    def test_format_deduction(self):
+        self.assertEqual(
+            format_deduction({
+                "name": "center_balance",
+                "average_lost_points": 3.45
+            }),
+            "center balance -3.5"
+        )
+        self.assertEqual(
+            format_deduction({
+                "name": "knee_tracking",
+                "lost_points": 2.04
+            }),
+            "knee tracking -2.0"
+        )
+        self.assertEqual(
+            format_deduction(
+                None
+            ),
+            "--"
         )
 
     def test_format_phase_scores_supports_summary_and_rep_shapes(self):
