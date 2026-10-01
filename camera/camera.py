@@ -61,6 +61,19 @@ def format_time(value):
     return f"{value:.2f}s"
 
 
+def format_change(
+    value,
+    suffix=""
+):
+    if value is None:
+        return "--"
+
+    return (
+        f"{value:+.1f}"
+        f"{suffix}"
+    )
+
+
 def update_side_leg_tracking(
     active_leg,
     left_visibility,
@@ -685,8 +698,12 @@ def run_camera():
 
     performance = SessionPerformanceAnalyzer()
 
+    session_type = "TEST"
+
     database = TrainingDatabase()
-    session_id = database.start_session()
+    session_id = database.start_session(
+        session_type=session_type
+    )
 
     report_exporter = SessionReportExporter()
     history_exporter = HistoryReportExporter()
@@ -719,6 +736,9 @@ def run_camera():
     )
     print(
         "按 M 切换显示模式"
+    )
+    print(
+        "按 T 切换 TEST / TRAINING（完成第一个 Rep 前）"
     )
     print(
         "按 Q / ESC 退出"
@@ -1310,6 +1330,14 @@ def run_camera():
                         f"View ratio: {view_ratio:.2f}"
                     ]
 
+            simple_lines = [
+                f"Session: {session_type}"
+            ] + simple_lines
+
+            detail_live_lines = [
+                f"Session: {session_type}"
+            ] + detail_live_lines
+
             display_mode = DISPLAY_MODES[
                 display_mode_index
             ]
@@ -1331,7 +1359,10 @@ def run_camera():
 
             draw_text(
                 frame,
-                f"UI: {display_mode}  |  M = switch",
+                (
+                    f"UI: {display_mode}  |  "
+                    f"M = UI  |  T = {session_type}"
+                ),
                 16,
                 camera_height - 12,
                 scale=0.34,
@@ -1360,6 +1391,41 @@ def run_camera():
                     "UI MODE -> "
                     f"{DISPLAY_MODES[display_mode_index]}"
                 )
+
+            if key in (
+                ord("t"),
+                ord("T")
+            ):
+                if len(
+                    performance.reps
+                ) == 0:
+                    session_type = (
+                        "TRAINING"
+                        if session_type == "TEST"
+                        else "TEST"
+                    )
+
+                    database.set_session_type(
+                        session_id,
+                        session_type
+                    )
+
+                    front_analyzer.reset()
+                    front_feedback.reset()
+                    side_analyzer.reset()
+
+                    side_switch_candidate = None
+                    side_switch_frames = 0
+                    side_leg_switched = False
+
+                    print(
+                        "SESSION MODE -> "
+                        f"{session_type}"
+                    )
+                else:
+                    print(
+                        "Session mode locked after first completed rep."
+                    )
 
             if key in (
                 ord("q"),
@@ -1408,7 +1474,8 @@ def run_camera():
             report_paths = report_exporter.export_session(
                 session_id,
                 performance.reps,
-                summary
+                summary,
+                session_type=session_type
             )
 
             print(
@@ -1421,37 +1488,58 @@ def run_camera():
                 f"Session report warning: {error}"
             )
 
-        try:
-            history = database.get_training_history(
-                limit=10
-            )
+        if session_type == "TRAINING":
+            try:
+                history = database.get_training_history(
+                    limit=10
+                )
 
-            progress = database.get_progress_summary(
-                limit=10
-            )
+                progress = database.get_progress_summary(
+                    limit=10
+                )
 
-            history_paths = history_exporter.export_history(
-                history,
-                progress
-            )
+                history_paths = history_exporter.export_history(
+                    history,
+                    progress
+                )
 
+                print(
+                    "TRAINING PROGRESS | "
+                    f"Sessions {progress['sessions']} | "
+                    f"Latest {progress['latest_average_score']:.1f} | "
+                    f"Vs baseline "
+                    f"{format_change(progress['score_change'])} | "
+                    f"Trend {progress['trend']}"
+                )
+
+                print(
+                    "FRONT PROGRESS | "
+                    f"{progress['front']['trend']} | "
+                    f"Change "
+                    f"{format_change(progress['front']['score_change'])}"
+                )
+
+                print(
+                    "SIDE PROGRESS | "
+                    f"{progress['side']['trend']} | "
+                    f"Change "
+                    f"{format_change(progress['side']['score_change'])}"
+                )
+
+                print(
+                    "HISTORY REPORT | "
+                    f"JSON {history_paths['json']} | "
+                    f"CSV {history_paths['csv']}"
+                )
+
+            except Exception as error:
+                print(
+                    f"History report warning: {error}"
+                )
+        else:
             print(
-                "TRAINING PROGRESS | "
-                f"Sessions {progress['sessions']} | "
-                f"Latest {progress['latest_average_score']:.1f} | "
-                f"Change {progress['score_change']:+.1f} | "
-                f"Trend {progress['trend']}"
-            )
-
-            print(
-                "HISTORY REPORT | "
-                f"JSON {history_paths['json']} | "
-                f"CSV {history_paths['csv']}"
-            )
-
-        except Exception as error:
-            print(
-                f"History report warning: {error}"
+                "TEST SESSION | "
+                "Excluded from formal training progress."
             )
 
         cap.release()
