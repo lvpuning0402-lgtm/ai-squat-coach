@@ -12,6 +12,10 @@ from feedback.performance import SessionPerformanceAnalyzer
 from data.database import TrainingDatabase
 from reports.session_report import SessionReportExporter
 from reports.history_report import HistoryReportExporter
+from standards.squat_standard import (
+    STANDARD_NAME,
+    VISION_TOLERANCE,
+)
 
 
 DISPLAY_MODES = [
@@ -52,42 +56,6 @@ def metric_state(
         return bad_text
 
     return "WATCH"
-
-
-def side_trunk_state(
-    trunk_lean,
-    rom_degrees
-):
-    if rom_degrees < 45.0:
-        return (
-            "READY",
-            None
-        )
-
-    ratio = (
-        trunk_lean
-        / max(
-            rom_degrees,
-            1.0
-        )
-    )
-
-    if ratio <= 0.40:
-        return (
-            "OK",
-            ratio
-        )
-
-    if ratio <= 0.55:
-        return (
-            "WATCH",
-            ratio
-        )
-
-    return (
-        "TOO MUCH",
-        ratio
-    )
 
 
 def format_time(value):
@@ -1006,42 +974,16 @@ def run_camera():
                                 )
                             )
 
-                        head_state = metric_state(
-                            front_result[
-                                "head_shift"
-                            ],
-                            0.15,
-                            0.30,
-                            "OK",
-                            "SHIFT"
-                        )
-
-                        shoulder_state = metric_state(
-                            front_result[
-                                "shoulder_tilt"
-                            ],
-                            0.08,
-                            0.16,
-                            "OK",
-                            "TILT"
-                        )
-
-                        center_state = metric_state(
-                            front_result[
-                                "center_shift"
-                            ],
-                            0.15,
-                            0.30,
-                            "OK",
-                            "SHIFT"
-                        )
-
                         sync_state = metric_state(
                             front_result[
                                 "shoulder_hip_sync"
                             ],
-                            0.08,
-                            0.18,
+                            VISION_TOLERANCE[
+                                "sync_good_max"
+                            ],
+                            VISION_TOLERANCE[
+                                "sync_bad_min"
+                            ],
                             "OK",
                             "CHECK"
                         )
@@ -1061,8 +1003,8 @@ def run_camera():
                                 f"{front_form['right_state']}"
                             ),
                             (
-                                f"Symmetry: "
-                                f"{front_form['symmetry_state']}"
+                                f"Ascent control: "
+                                f"{sync_state}"
                             )
                         ]
 
@@ -1083,33 +1025,34 @@ def run_camera():
 
                         detail_form_lines = [
                             (
-                                f"Head "
-                                f"{front_result['head_shift']:.2f} "
-                                f"[{head_state}]"
-                            ),
-                            (
-                                f"Shoulders "
-                                f"{front_result['shoulder_tilt']:.2f} "
-                                f"[{shoulder_state}]"
-                            ),
-                            (
-                                f"Center "
-                                f"{front_result['center_shift']:.2f} "
-                                f"[{center_state}]"
-                            ),
-                            (
-                                f"Sync "
-                                f"{front_result['shoulder_hip_sync']:.2f} "
-                                f"[{sync_state}]"
-                            ),
-                            (
                                 f"Knees "
                                 f"{front_form['left_state']} / "
                                 f"{front_form['right_state']}"
                             ),
                             (
+                                f"Ascent sync "
+                                f"{front_result['shoulder_hip_sync']:.2f} "
+                                f"[{sync_state}]"
+                            ),
+                            (
+                                f"Head shift "
+                                f"{front_result['head_shift']:.2f} "
+                                f"[INFO]"
+                            ),
+                            (
+                                f"Shoulder tilt "
+                                f"{front_result['shoulder_tilt']:.2f} "
+                                f"[INFO]"
+                            ),
+                            (
+                                f"Center shift "
+                                f"{front_result['center_shift']:.2f} "
+                                f"[INFO]"
+                            ),
+                            (
                                 f"Symmetry "
-                                f"{front_form['symmetry_state']}"
+                                f"{front_form['symmetry_value']:.2f} "
+                                f"[INFO]"
                             )
                         ]
 
@@ -1232,34 +1175,16 @@ def run_camera():
                             )
                         )
 
-                    (
-                        trunk_state,
-                        trunk_rom_ratio
-                    ) = side_trunk_state(
-                        side_result[
-                            "trunk_lean"
-                        ],
-                        side_result[
-                            "rom_degrees"
-                        ]
-                    )
-
-                    head_state = metric_state(
-                        side_result[
-                            "head_forward"
-                        ],
-                        0.35,
-                        0.55,
-                        "OK",
-                        "FORWARD"
-                    )
-
                     sync_state = metric_state(
                         side_result[
                             "shoulder_hip_sync"
                         ],
-                        0.20,
-                        0.40,
+                        VISION_TOLERANCE[
+                            "sync_good_max"
+                        ],
+                        VISION_TOLERANCE[
+                            "sync_bad_min"
+                        ],
                         "OK",
                         "CHECK"
                     )
@@ -1278,8 +1203,8 @@ def run_camera():
                             f"{side_result['depth']}"
                         ),
                         (
-                            f"Trunk: "
-                            f"{trunk_state}"
+                            f"Ascent control: "
+                            f"{sync_state}"
                         )
                     ]
 
@@ -1304,19 +1229,23 @@ def run_camera():
 
                     detail_form_lines = [
                         (
-                            f"Trunk "
-                            f"{side_result['trunk_lean']:.1f} "
-                            f"[{trunk_state}]"
+                            f"Depth "
+                            f"{side_result['depth']}"
                         ),
                         (
-                            f"Head "
-                            f"{side_result['head_forward']:.2f} "
-                            f"[{head_state}]"
-                        ),
-                        (
-                            f"Sync "
+                            f"Ascent sync "
                             f"{side_result['shoulder_hip_sync']:.2f} "
                             f"[{sync_state}]"
+                        ),
+                        (
+                            f"Trunk lean "
+                            f"{side_result['trunk_lean']:.1f} deg "
+                            f"[INFO]"
+                        ),
+                        (
+                            f"Head forward "
+                            f"{side_result['head_forward']:.2f} "
+                            f"[INFO]"
                         )
                     ]
 
@@ -1347,12 +1276,8 @@ def run_camera():
                             f"{side_result['hip_angle']:.1f}"
                         ),
                         (
-                            "Trunk/ROM: "
-                            + (
-                                f"{trunk_rom_ratio:.2f}"
-                                if trunk_rom_ratio is not None
-                                else "--"
-                            )
+                            f"Depth margin: "
+                            f"{side_result['depth_margin']:.3f}"
                         ),
                         (
                             f"Knee velocity: "
@@ -1391,10 +1316,12 @@ def run_camera():
                     ]
 
             simple_lines = [
+                f"Standard: {STANDARD_NAME}",
                 f"Session: {session_type}"
             ] + simple_lines
 
             detail_live_lines = [
+                f"Standard: {STANDARD_NAME}",
                 f"Session: {session_type}"
             ] + detail_live_lines
 
