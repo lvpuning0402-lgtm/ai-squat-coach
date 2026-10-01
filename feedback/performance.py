@@ -846,6 +846,14 @@ class SessionPerformanceAnalyzer:
             "detail_label": detail_result[
                 "detail_label"
             ],
+            "detail_coverage": detail_result.get(
+                "detail_coverage",
+                0.0
+            ),
+            "detail_confidence": detail_result.get(
+                "detail_confidence",
+                "LOW"
+            ),
             "detail_weighted_components": detail_result.get(
                 "weighted_components",
                 {}
@@ -914,11 +922,14 @@ class SessionPerformanceAnalyzer:
                 "excluded_reps": 0,
                 "average_score": 0.0,
                 "average_detail_score": 0.0,
+                "average_detail_coverage": 0.0,
                 "average_front_physique_score": None,
                 "average_side_ipf_score": None,
                 "detail_component_averages": {},
                 "top_detail_deductions": [],
                 "phase_score_averages": {},
+                "phase_coverage_averages": {},
+                "phase_confidence_counts": {},
                 "phase_deduction_summary": {},
                 "weakest_phase": None,
                 "detail_watch_reps": 0,
@@ -961,11 +972,14 @@ class SessionPerformanceAnalyzer:
                 ),
                 "average_score": 0.0,
                 "average_detail_score": 0.0,
+                "average_detail_coverage": 0.0,
                 "average_front_physique_score": None,
                 "average_side_ipf_score": None,
                 "detail_component_averages": {},
                 "top_detail_deductions": [],
                 "phase_score_averages": {},
+                "phase_coverage_averages": {},
+                "phase_confidence_counts": {},
                 "phase_deduction_summary": {},
                 "weakest_phase": None,
                 "detail_watch_reps": 0,
@@ -1062,6 +1076,27 @@ class SessionPerformanceAnalyzer:
                 detail_scores
             )
             if detail_scores
+            else 0.0
+        )
+
+        detail_coverages = [
+            float(
+                rep.get(
+                    "detail_coverage",
+                    0.0
+                )
+            )
+            for rep in valid_reps
+            if rep.get(
+                "detail_score"
+            ) is not None
+        ]
+
+        average_detail_coverage = (
+            mean(
+                detail_coverages
+            )
+            if detail_coverages
             else 0.0
         )
 
@@ -1266,6 +1301,16 @@ class SessionPerformanceAnalyzer:
             "bottom": [],
             "ascent": [],
         }
+        phase_coverage_values = {
+            "descent": [],
+            "bottom": [],
+            "ascent": [],
+        }
+        phase_confidence_counts = {
+            "descent": Counter(),
+            "bottom": Counter(),
+            "ascent": Counter(),
+        }
 
         for rep in valid_reps:
             for phase, phase_data in rep.get(
@@ -1288,6 +1333,30 @@ class SessionPerformanceAnalyzer:
                         )
                     )
 
+                    coverage = phase_data.get(
+                        "coverage"
+                    )
+
+                    if coverage is not None:
+                        phase_coverage_values[
+                            phase
+                        ].append(
+                            float(
+                                coverage
+                            )
+                        )
+
+                    confidence = phase_data.get(
+                        "confidence"
+                    )
+
+                    if confidence:
+                        phase_confidence_counts[
+                            phase
+                        ][
+                            confidence
+                        ] += 1
+
         phase_score_averages = {
             phase: round(
                 mean(
@@ -1299,6 +1368,54 @@ class SessionPerformanceAnalyzer:
             in phase_score_values.items()
             if values
         }
+
+        phase_coverage_averages = {
+            phase: round(
+                mean(
+                    values
+                ),
+                3
+            )
+            for phase, values
+            in phase_coverage_values.items()
+            if values
+        }
+
+        phase_confidence_summary = {}
+
+        confidence_priority = {
+            "LOW": 0,
+            "MEDIUM": 1,
+            "HIGH": 2,
+        }
+
+        for phase, counts in phase_confidence_counts.items():
+            if not counts:
+                continue
+
+            label = sorted(
+                counts.items(),
+                key=lambda item: (
+                    -item[
+                        1
+                    ],
+                    confidence_priority.get(
+                        item[
+                            0
+                        ],
+                        99
+                    )
+                )
+            )[0][0]
+
+            phase_confidence_summary[
+                phase
+            ] = {
+                "label": label,
+                "counts": dict(
+                    counts
+                )
+            }
 
         phase_deduction_stats = {
             "descent": {},
@@ -1418,6 +1535,19 @@ class SessionPerformanceAnalyzer:
                 "score": weakest_phase[
                     1
                 ],
+                "coverage": phase_coverage_averages.get(
+                    weakest_phase[
+                        0
+                    ]
+                ),
+                "confidence": phase_confidence_summary.get(
+                    weakest_phase[
+                        0
+                    ],
+                    {}
+                ).get(
+                    "label"
+                ),
             }
             if weakest_phase is not None
             else None
@@ -1733,6 +1863,10 @@ class SessionPerformanceAnalyzer:
                 average_detail_score,
                 1
             ),
+            "average_detail_coverage": round(
+                average_detail_coverage,
+                3
+            ),
             "average_front_physique_score": (
                 round(
                     average_front_physique_score,
@@ -1754,6 +1888,8 @@ class SessionPerformanceAnalyzer:
             "detail_component_averages": detail_component_averages,
             "top_detail_deductions": top_detail_deductions,
             "phase_score_averages": phase_score_averages,
+            "phase_coverage_averages": phase_coverage_averages,
+            "phase_confidence_counts": phase_confidence_summary,
             "phase_deduction_summary": phase_deduction_summary,
             "weakest_phase": weakest_phase_summary,
             "detail_watch_reps": detail_watch_reps,
