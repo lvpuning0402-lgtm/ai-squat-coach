@@ -456,6 +456,64 @@ def draw_panel(
     return panel_height
 
 
+def _rep_detail_state(
+    rep
+):
+    warnings = rep.get(
+        "detail_warnings",
+        []
+    )
+
+    if not warnings:
+        return (
+            "PASS",
+            "OK"
+        )
+
+    checks = rep.get(
+        "detail_checks",
+        {}
+    )
+
+    states = [
+        checks.get(
+            warning,
+            {}
+        ).get(
+            "state",
+            "WATCH"
+        )
+        for warning in warnings
+    ]
+
+    detail_state = (
+        "REVIEW"
+        if "REVIEW" in states
+        else "WATCH"
+    )
+
+    issue_text = str(
+        warnings[
+            0
+        ]
+    ).replace(
+        "_",
+        " "
+    )
+
+    if len(
+        warnings
+    ) > 1:
+        issue_text += (
+            f" +{len(warnings) - 1}"
+        )
+
+    return (
+        detail_state,
+        issue_text
+    )
+
+
 def _rep_timeline_line(
     rep
 ):
@@ -504,9 +562,10 @@ def _rep_timeline_line(
         []
     )
 
-    detail_warnings = rep.get(
-        "detail_warnings",
-        []
+    detail_state, detail_text = (
+        _rep_detail_state(
+            rep
+        )
     )
 
     if issues:
@@ -517,20 +576,8 @@ def _rep_timeline_line(
             )
             for issue in issues
         )
-    elif detail_warnings:
-        issue_text = (
-            "DETAIL "
-            + str(
-                detail_warnings[
-                    0
-                ]
-            ).replace(
-                "_",
-                " "
-            )
-        )
     else:
-        issue_text = "OK"
+        issue_text = detail_text
 
     try:
         rep_text = (
@@ -546,6 +593,7 @@ def _rep_timeline_line(
         f"{rep_text}  "
         f"{view:<5}  "
         f"{status:<8}  "
+        f"{detail_state:<6}  "
         f"{score_text:>5}  "
         f"{issue_text}"
     )
@@ -630,9 +678,14 @@ def build_session_summary_frame(
             f"{summary.get('average_detail_score', 0.0):.1f}"
         ),
         (
-            f"Detail watch: "
+            f"Detail notes: "
             f"{summary.get('detail_watch_reps', 0)}/"
-            f"{summary.get('valid_reps', 0)}"
+            f"{summary.get('valid_reps', 0)} reps"
+        ),
+        (
+            f"Detail events: "
+            f"WATCH {summary.get('detail_watch_events', 0)} / "
+            f"REVIEW {summary.get('detail_review_events', 0)}"
         ),
         (
             f"Best rep: #"
@@ -702,6 +755,33 @@ def build_session_summary_frame(
         ),
     ]
 
+    top_details = summary.get(
+        "top_detail_warnings",
+        []
+    )
+
+    for detail in top_details[
+        :3
+    ]:
+        coach_lines.append(
+            (
+                "Detail: "
+                + str(
+                    detail.get(
+                        "name",
+                        "unknown"
+                    )
+                ).replace(
+                    "_",
+                    " "
+                )
+                + (
+                    f"  W{detail.get('watch', 0)}"
+                    f" / R{detail.get('review', 0)}"
+                )
+            )
+        )
+
     if coach_feedback.get(
         "main_issue",
         "NONE"
@@ -735,7 +815,7 @@ def build_session_summary_frame(
     ]
 
     timeline_lines = [
-        "REP   VIEW   STATUS    SCORE   ISSUE"
+        "REP   VIEW   STD       DTL     SCORE   FOCUS"
     ]
 
     timeline_lines.extend(
