@@ -176,7 +176,8 @@ class SessionInsightBuilder:
                     session_type == "TEST"
                 ),
                 "ui_lines": [
-                    "No completed reps",
+                    "No valid completed reps",
+                    "Focus: tracking / full movement",
                     "Complete natural reps first",
                 ],
             }
