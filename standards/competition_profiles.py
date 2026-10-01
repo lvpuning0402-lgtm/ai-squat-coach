@@ -77,3 +77,59 @@ DETAIL_STATE_SCORE = {
     "REVIEW": 62.0,
     "INFO": None,
 }
+
+# Weighted scoring profiles.
+# These weights are project design choices for coaching emphasis. They are NOT
+# official federation score sheets. Each profile sums to 1.0.
+DETAIL_WEIGHTS = {
+    "FRONT_COACH": {
+        "knee_tracking": 0.24,
+        "ascent_control": 0.18,
+        "center_balance": 0.14,
+        "hip_level": 0.12,
+        "knee_angle_symmetry": 0.12,
+        "shoulder_level": 0.08,
+        "head_control": 0.06,
+        "knee_height_symmetry": 0.06,
+    },
+    "SIDE_COACH": {
+        "general_depth": 0.35,
+        "ascent_control": 0.30,
+        "lockout_proxy": 0.20,
+        "head_control": 0.15,
+    },
+    "IPF_SQUAT_PROXY": {
+        "ipf_depth_proxy": 0.45,
+        "ascent_control": 0.30,
+        "lockout_proxy": 0.25,
+    },
+    "PHYSIQUE_CONTROL_FRONT": {
+        "shoulder_level": 0.20,
+        "hip_level": 0.22,
+        "center_balance": 0.20,
+        "knee_angle_symmetry": 0.16,
+        "knee_height_symmetry": 0.12,
+        "head_control": 0.10,
+    },
+}
+
+# Continuous-score anchors used inside the PASS/WATCH/REVIEW bands.
+# PASS remains 90-100, WATCH 70-<90, REVIEW below 70.
+CONTINUOUS_SCORING = {
+    "pass_floor": 90.0,
+    "watch_floor": 70.0,
+    "review_floor": 40.0,
+    "extreme_multiplier": 2.0,
+}
+
+DETAIL_GRADE_BANDS = [
+    (95.0, "A+"),
+    (90.0, "A"),
+    (85.0, "B+"),
+    (80.0, "B"),
+    (75.0, "C+"),
+    (70.0, "C"),
+    (60.0, "D"),
+    (0.0, "E"),
+]
+
