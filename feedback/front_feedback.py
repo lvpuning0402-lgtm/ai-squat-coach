@@ -48,7 +48,90 @@ class FrontFeedback:
         self.current_max_left_inward = 0.0
         self.current_max_right_inward = 0.0
         self.current_max_symmetry = 0.0
+        self.phase_metrics = self._new_phase_metrics()
         self.last_rep_metrics = None
+
+    @staticmethod
+    def _new_phase_metrics():
+        return {
+            "descent": {
+                "samples": 0,
+                "max_left_inward": 0.0,
+                "max_right_inward": 0.0,
+                "max_symmetry_value": 0.0,
+            },
+            "bottom": {
+                "samples": 0,
+                "max_left_inward": 0.0,
+                "max_right_inward": 0.0,
+                "max_symmetry_value": 0.0,
+            },
+            "ascent": {
+                "samples": 0,
+                "max_left_inward": 0.0,
+                "max_right_inward": 0.0,
+                "max_symmetry_value": 0.0,
+            },
+        }
+
+    @staticmethod
+    def _phase_key(
+        stage
+    ):
+        return {
+            "DESCENDING": "descent",
+            "BOTTOM": "bottom",
+            "ASCENDING": "ascent",
+            "down": "descent",
+        }.get(
+            stage
+        )
+
+    def _record_phase_metrics(
+        self,
+        stage,
+        left_inward,
+        right_inward,
+        symmetry
+    ):
+        phase_key = self._phase_key(
+            stage
+        )
+
+        if phase_key is None:
+            return
+
+        metrics = self.phase_metrics[
+            phase_key
+        ]
+
+        metrics[
+            "samples"
+        ] += 1
+        metrics[
+            "max_left_inward"
+        ] = max(
+            metrics[
+                "max_left_inward"
+            ],
+            left_inward
+        )
+        metrics[
+            "max_right_inward"
+        ] = max(
+            metrics[
+                "max_right_inward"
+            ],
+            right_inward
+        )
+        metrics[
+            "max_symmetry_value"
+        ] = max(
+            metrics[
+                "max_symmetry_value"
+            ],
+            symmetry
+        )
 
     @staticmethod
     def average(buffer):
@@ -198,12 +281,20 @@ class FrontFeedback:
         self.current_max_left_inward = 0.0
         self.current_max_right_inward = 0.0
         self.current_max_symmetry = 0.0
+        self.phase_metrics = self._new_phase_metrics()
 
     def finalize_rep_metrics(self):
         self.last_rep_metrics = {
             "max_left_inward": self.current_max_left_inward,
             "max_right_inward": self.current_max_right_inward,
-            "max_symmetry_value": self.current_max_symmetry
+            "max_symmetry_value": self.current_max_symmetry,
+            "phase_metrics": {
+                phase: dict(
+                    metrics
+                )
+                for phase, metrics
+                in self.phase_metrics.items()
+            }
         }
 
         result = dict(
@@ -280,6 +371,13 @@ class FrontFeedback:
             )
             self.current_max_symmetry = max(
                 self.current_max_symmetry,
+                smooth_symmetry
+            )
+
+            self._record_phase_metrics(
+                stage,
+                smooth_left,
+                smooth_right,
                 smooth_symmetry
             )
 
