@@ -152,14 +152,32 @@ class SessionReportExporter:
                 )
             }
 
+        report_context = (
+            "TEST_PROTOCOL"
+            if session_type == "TEST"
+            else "TRAINING_SESSION"
+        )
+
+        summary_note = (
+            "TEST session: consistency and trend are descriptive only "
+            "and may be intentionally distorted by protocol changes."
+            if session_type == "TEST"
+            else (
+                "TRAINING session: consistency and trend can be used "
+                "for within-set review."
+            )
+        )
+
         return {
             "report_version": 1,
             "session_id": session_id,
             "session_type": session_type,
+            "report_context": report_context,
             "generated_at": datetime.now().isoformat(
                 timespec="seconds"
             ),
             "summary": summary,
+            "summary_note": summary_note,
             "view_summary": view_summary,
             "issue_counts": dict(
                 issue_counter
