@@ -212,6 +212,182 @@ class CompetitionDetailEvaluatorTests(unittest.TestCase):
             ]
         )
 
+    def test_front_phase_scores_identify_weakest_bottom_phase(self):
+        evaluator = CompetitionDetailEvaluator()
+
+        result = evaluator.evaluate({
+            "view": "FRONT",
+            "max_left_inward": 0.05,
+            "max_right_inward": 0.05,
+            "max_ascent_sync_error": 0.06,
+            "max_head_shift": 0.05,
+            "max_shoulder_tilt": 0.05,
+            "max_hip_tilt": 0.05,
+            "max_center_shift": 0.05,
+            "max_knee_angle_asymmetry": 6.0,
+            "max_symmetry_value": 0.08,
+            "phase_metrics": {
+                "descent": {
+                    "samples": 8,
+                    "max_left_inward": 0.04,
+                    "max_right_inward": 0.05,
+                    "max_symmetry_value": 0.08,
+                    "max_head_shift": 0.05,
+                    "max_shoulder_tilt": 0.05,
+                    "max_hip_tilt": 0.05,
+                    "max_center_shift": 0.05,
+                    "max_knee_angle_asymmetry": 6.0,
+                    "max_ascent_sync_error": 0.0,
+                },
+                "bottom": {
+                    "samples": 3,
+                    "max_left_inward": 0.16,
+                    "max_right_inward": 0.17,
+                    "max_symmetry_value": 0.24,
+                    "max_head_shift": 0.10,
+                    "max_shoulder_tilt": 0.12,
+                    "max_hip_tilt": 0.13,
+                    "max_center_shift": 0.16,
+                    "max_knee_angle_asymmetry": 17.0,
+                    "max_ascent_sync_error": 0.0,
+                },
+                "ascent": {
+                    "samples": 8,
+                    "max_left_inward": 0.05,
+                    "max_right_inward": 0.05,
+                    "max_symmetry_value": 0.08,
+                    "max_head_shift": 0.05,
+                    "max_shoulder_tilt": 0.05,
+                    "max_hip_tilt": 0.05,
+                    "max_center_shift": 0.05,
+                    "max_knee_angle_asymmetry": 6.0,
+                    "max_ascent_sync_error": 0.06,
+                },
+            },
+        })
+
+        self.assertEqual(
+            set(
+                result[
+                    "phase_scores"
+                ].keys()
+            ),
+            {
+                "descent",
+                "bottom",
+                "ascent",
+            }
+        )
+        self.assertEqual(
+            result[
+                "weakest_phase"
+            ][
+                "phase"
+            ],
+            "bottom"
+        )
+        self.assertLess(
+            result[
+                "phase_scores"
+            ][
+                "bottom"
+            ][
+                "score"
+            ],
+            result[
+                "phase_scores"
+            ][
+                "descent"
+            ][
+                "score"
+            ]
+        )
+
+    def test_side_phase_scores_use_depth_trunk_stability_and_ascent_control(self):
+        evaluator = CompetitionDetailEvaluator()
+
+        result = evaluator.evaluate({
+            "view": "SIDE",
+            "depth_standard_met": True,
+            "ipf_depth_proxy_met": True,
+            "max_ascent_sync_error": 0.06,
+            "max_head_forward": 0.12,
+            "max_knee_angle": 170.0,
+            "min_knee_angle": 80.0,
+            "min_hip_angle": 60.0,
+            "max_trunk_lean": 30.0,
+            "shin_angle_at_min_knee": 25.0,
+            "max_depth_margin": 0.03,
+            "phase_metrics": {
+                "descent": {
+                    "samples": 10,
+                    "min_trunk_lean": 12.0,
+                    "max_trunk_lean": 18.0,
+                    "max_head_forward": 0.12,
+                    "max_depth_margin": -0.10,
+                    "max_knee_angle": 155.0,
+                },
+                "bottom": {
+                    "samples": 4,
+                    "min_trunk_lean": 25.0,
+                    "max_trunk_lean": 29.0,
+                    "max_head_forward": 0.13,
+                    "max_depth_margin": 0.03,
+                    "max_knee_angle": 100.0,
+                },
+                "ascent": {
+                    "samples": 10,
+                    "min_trunk_lean": 16.0,
+                    "max_trunk_lean": 24.0,
+                    "max_head_forward": 0.12,
+                    "max_depth_margin": 0.02,
+                    "max_knee_angle": 170.0,
+                    "max_ascent_sync_error": 0.06,
+                },
+            },
+        })
+
+        self.assertGreaterEqual(
+            result[
+                "phase_scores"
+            ][
+                "bottom"
+            ][
+                "score"
+            ],
+            90.0
+        )
+        self.assertIn(
+            "trunk_stability",
+            result[
+                "phase_scores"
+            ][
+                "descent"
+            ][
+                "checks"
+            ]
+        )
+        self.assertIn(
+            "ascent_control",
+            result[
+                "phase_scores"
+            ][
+                "ascent"
+            ][
+                "checks"
+            ]
+        )
+        self.assertIn(
+            "lockout_proxy",
+            result[
+                "phase_scores"
+            ][
+                "ascent"
+            ][
+                "checks"
+            ]
+        )
+
 class CompetitionDetailPerformanceIntegrationTests(unittest.TestCase):
     def test_detail_score_does_not_change_hard_standard_pass(self):
         analyzer = SessionPerformanceAnalyzer()
@@ -229,6 +405,42 @@ class CompetitionDetailPerformanceIntegrationTests(unittest.TestCase):
             "max_center_shift": 0.12,
             "max_knee_angle_asymmetry": 15.0,
             "max_symmetry_value": 0.22,
+            "phase_metrics": {
+                "descent": {
+                    "samples": 5,
+                    "max_left_inward": 0.04,
+                    "max_right_inward": 0.05,
+                    "max_symmetry_value": 0.12,
+                    "max_head_shift": 0.08,
+                    "max_shoulder_tilt": 0.09,
+                    "max_hip_tilt": 0.08,
+                    "max_center_shift": 0.08,
+                    "max_knee_angle_asymmetry": 9.0,
+                },
+                "bottom": {
+                    "samples": 2,
+                    "max_left_inward": 0.05,
+                    "max_right_inward": 0.05,
+                    "max_symmetry_value": 0.14,
+                    "max_head_shift": 0.09,
+                    "max_shoulder_tilt": 0.11,
+                    "max_hip_tilt": 0.10,
+                    "max_center_shift": 0.10,
+                    "max_knee_angle_asymmetry": 11.0,
+                },
+                "ascent": {
+                    "samples": 5,
+                    "max_left_inward": 0.04,
+                    "max_right_inward": 0.05,
+                    "max_symmetry_value": 0.12,
+                    "max_head_shift": 0.08,
+                    "max_shoulder_tilt": 0.09,
+                    "max_hip_tilt": 0.08,
+                    "max_center_shift": 0.08,
+                    "max_knee_angle_asymmetry": 9.0,
+                    "max_ascent_sync_error": 0.08,
+                },
+            },
         })
 
         self.assertTrue(
@@ -282,6 +494,29 @@ class CompetitionDetailPerformanceIntegrationTests(unittest.TestCase):
             "knee_tracking",
             summary[
                 "detail_component_averages"
+            ]
+        )
+        self.assertIn(
+            "descent",
+            summary[
+                "phase_score_averages"
+            ]
+        )
+        self.assertIn(
+            "bottom",
+            summary[
+                "phase_score_averages"
+            ]
+        )
+        self.assertIn(
+            "ascent",
+            summary[
+                "phase_score_averages"
+            ]
+        )
+        self.assertIsNotNone(
+            summary[
+                "weakest_phase"
             ]
         )
 
