@@ -248,9 +248,12 @@ class SessionReportExporter:
             "quality_label",
             "detail_profile",
             "detail_score",
+            "detail_grade",
             "detail_label",
             "detail_warnings",
             "competition_flags",
+            "physique_control_score",
+            "ipf_proxy_score",
             "descent_time",
             "bottom_time",
             "ascent_time",
@@ -350,6 +353,9 @@ class SessionReportExporter:
                             "detail_score"
                         )
                     ),
+                    "detail_grade": rep.get(
+                        "detail_grade"
+                    ),
                     "detail_label": rep.get(
                         "detail_label"
                     ),
@@ -363,6 +369,28 @@ class SessionReportExporter:
                         rep.get(
                             "competition_flags",
                             []
+                        )
+                    ),
+                    "physique_control_score": self._safe_number(
+                        rep.get(
+                            "competition_lenses",
+                            {}
+                        ).get(
+                            "physique_control",
+                            {}
+                        ).get(
+                            "score"
+                        )
+                    ),
+                    "ipf_proxy_score": self._safe_number(
+                        rep.get(
+                            "competition_lenses",
+                            {}
+                        ).get(
+                            "ipf_squat_proxy",
+                            {}
+                        ).get(
+                            "score"
                         )
                     ),
                     "descent_time": self._safe_number(
