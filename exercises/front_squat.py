@@ -36,6 +36,8 @@ class FrontSquatAnalyzer:
         self.velocity_buffer = deque(maxlen=5)
         self.head_shift_buffer = deque(maxlen=7)
         self.shoulder_tilt_buffer = deque(maxlen=7)
+        self.hip_tilt_buffer = deque(maxlen=7)
+        self.knee_asymmetry_buffer = deque(maxlen=7)
         self.center_shift_buffer = deque(maxlen=7)
 
         self.previous_descent = 0.0
@@ -70,6 +72,8 @@ class FrontSquatAnalyzer:
         self.current_max_descent = 0.0
         self.current_max_head_shift = 0.0
         self.current_max_shoulder_tilt = 0.0
+        self.current_max_hip_tilt = 0.0
+        self.current_max_knee_angle_asymmetry = 0.0
         self.current_max_center_shift = 0.0
         self.current_max_sync_error = 0.0
         self.current_max_ascent_sync_error = 0.0
@@ -136,6 +140,8 @@ class FrontSquatAnalyzer:
         self.current_max_descent = 0.0
         self.current_max_head_shift = 0.0
         self.current_max_shoulder_tilt = 0.0
+        self.current_max_hip_tilt = 0.0
+        self.current_max_knee_angle_asymmetry = 0.0
         self.current_max_center_shift = 0.0
         self.current_max_sync_error = 0.0
         self.current_max_ascent_sync_error = 0.0
@@ -150,6 +156,8 @@ class FrontSquatAnalyzer:
         self.hip_buffer.clear()
         self.combined_buffer.clear()
         self.velocity_buffer.clear()
+        self.hip_tilt_buffer.clear()
+        self.knee_asymmetry_buffer.clear()
         self.center_shift_buffer.clear()
         self.ascent_sync_buffer.clear()
 
@@ -230,6 +238,10 @@ class FrontSquatAnalyzer:
             "min_knee_angle": self.current_min_knee_angle,
             "max_head_shift": self.current_max_head_shift,
             "max_shoulder_tilt": self.current_max_shoulder_tilt,
+            "max_hip_tilt": self.current_max_hip_tilt,
+            "max_knee_angle_asymmetry": (
+                self.current_max_knee_angle_asymmetry
+            ),
             "max_center_shift": self.current_max_center_shift,
             "max_sync_error": self.current_max_sync_error,
             "max_ascent_sync_error": self.current_max_ascent_sync_error
@@ -312,11 +324,35 @@ class FrontSquatAnalyzer:
             - right_shoulder[1]
         ) / shoulder_width
 
+        hip_width = max(
+            abs(
+                right_hip[0]
+                - left_hip[0]
+            ),
+            0.01
+        )
+
+        hip_tilt = abs(
+            left_hip[1]
+            - right_hip[1]
+        ) / hip_width
+
+        knee_angle_asymmetry = abs(
+            left_knee_angle
+            - right_knee_angle
+        )
+
         self.head_shift_buffer.append(
             head_shift
         )
         self.shoulder_tilt_buffer.append(
             shoulder_tilt
+        )
+        self.hip_tilt_buffer.append(
+            hip_tilt
+        )
+        self.knee_asymmetry_buffer.append(
+            knee_angle_asymmetry
         )
 
         smooth_head_shift = median(
@@ -324,6 +360,12 @@ class FrontSquatAnalyzer:
         )
         smooth_shoulder_tilt = median(
             self.shoulder_tilt_buffer
+        )
+        smooth_hip_tilt = median(
+            self.hip_tilt_buffer
+        )
+        smooth_knee_angle_asymmetry = median(
+            self.knee_asymmetry_buffer
         )
 
         if self.baseline_shoulder_y is None:
@@ -703,6 +745,14 @@ class FrontSquatAnalyzer:
                 self.current_max_shoulder_tilt,
                 smooth_shoulder_tilt
             )
+            self.current_max_hip_tilt = max(
+                self.current_max_hip_tilt,
+                smooth_hip_tilt
+            )
+            self.current_max_knee_angle_asymmetry = max(
+                self.current_max_knee_angle_asymmetry,
+                smooth_knee_angle_asymmetry
+            )
             self.current_max_center_shift = max(
                 self.current_max_center_shift,
                 smooth_center_shift
@@ -737,9 +787,13 @@ class FrontSquatAnalyzer:
             "combined_descent": smooth_descent,
             "descent_velocity": smooth_velocity,
             "average_knee_angle": average_knee_angle,
+            "left_knee_angle": left_knee_angle,
+            "right_knee_angle": right_knee_angle,
+            "knee_angle_asymmetry": smooth_knee_angle_asymmetry,
             "depth_reached": self.depth_reached,
             "head_shift": smooth_head_shift,
             "shoulder_tilt": smooth_shoulder_tilt,
+            "hip_tilt": smooth_hip_tilt,
             "center_shift": smooth_center_shift,
             "shoulder_hip_sync": sync_error,
             "ascent_sync_error": (
@@ -771,6 +825,8 @@ class FrontSquatAnalyzer:
         self.velocity_buffer.clear()
         self.head_shift_buffer.clear()
         self.shoulder_tilt_buffer.clear()
+        self.hip_tilt_buffer.clear()
+        self.knee_asymmetry_buffer.clear()
         self.center_shift_buffer.clear()
 
         self.previous_descent = 0.0
