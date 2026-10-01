@@ -1,3 +1,4 @@
+from collections import Counter
 from statistics import mean
 
 
@@ -18,7 +19,13 @@ class SessionPerformanceAnalyzer:
 
     @staticmethod
     def _clamp(value, low=0.0, high=100.0):
-        return max(low, min(high, value))
+        return max(
+            low,
+            min(
+                high,
+                value
+            )
+        )
 
     @staticmethod
     def _safe(value, default=0.0):
@@ -26,49 +33,171 @@ class SessionPerformanceAnalyzer:
             return default
         return float(value)
 
+    def score_front_knee_tracking(
+        self,
+        rep_data,
+        issues
+    ):
+        left_inward = self._safe(
+            rep_data.get(
+                "max_left_inward",
+                rep_data.get(
+                    "left_inward",
+                    0.0
+                )
+            ),
+            0.0
+        )
+
+        right_inward = self._safe(
+            rep_data.get(
+                "max_right_inward",
+                rep_data.get(
+                    "right_inward",
+                    0.0
+                )
+            ),
+            0.0
+        )
+
+        max_inward = max(
+            0.0,
+            left_inward,
+            right_inward
+        )
+
+        # 当前测试阈值来自实际摄像头校准：
+        # <0.05 稳定，>0.15 明显内扣。
+        if max_inward <= 0.05:
+            score = 100.0
+        elif max_inward <= 0.15:
+            progress = (
+                max_inward - 0.05
+            ) / 0.10
+
+            score = (
+                100.0
+                - 15.0 * progress
+            )
+        else:
+            score = self._clamp(
+                85.0
+                - (
+                    max_inward - 0.15
+                ) * 140.0
+            )
+            issues.append(
+                "KNEE_TRACKING"
+            )
+
+        return score
+
+    def score_front_symmetry(
+        self,
+        rep_data,
+        issues
+    ):
+        symmetry = self._safe(
+            rep_data.get(
+                "max_symmetry_value",
+                rep_data.get(
+                    "symmetry_value",
+                    0.0
+                )
+            ),
+            0.0
+        )
+
+        # 当前测试阈值来自实际摄像头校准：
+        # <0.35 稳定，>0.60 明显偏侧。
+        if symmetry <= 0.35:
+            score = 100.0
+        elif symmetry <= 0.60:
+            progress = (
+                symmetry - 0.35
+            ) / 0.25
+
+            score = (
+                100.0
+                - 15.0 * progress
+            )
+        else:
+            score = self._clamp(
+                85.0
+                - (
+                    symmetry - 0.60
+                ) * 60.0
+            )
+            issues.append(
+                "ASYMMETRY"
+            )
+
+        return score
+
     def analyze_rep(self, rep_data):
-        view = rep_data.get("view", "UNKNOWN")
+        view = rep_data.get(
+            "view",
+            "UNKNOWN"
+        )
 
         issues = []
         component_scores = {}
 
         if view == "SIDE":
             min_knee = self._safe(
-                rep_data.get("min_knee_angle"),
+                rep_data.get(
+                    "min_knee_angle"
+                ),
                 180.0
             )
             trunk = self._safe(
-                rep_data.get("max_trunk_lean"),
+                rep_data.get(
+                    "max_trunk_lean"
+                ),
                 0.0
             )
             head = self._safe(
-                rep_data.get("max_head_forward"),
+                rep_data.get(
+                    "max_head_forward"
+                ),
                 0.0
             )
             sync = self._safe(
-                rep_data.get("max_sync_error"),
+                rep_data.get(
+                    "max_sync_error"
+                ),
                 0.0
             )
 
-            # 深度：85~120°给较高分，过浅明显扣分。
             if min_knee <= 120:
                 depth_score = 100.0
             else:
                 depth_score = self._clamp(
-                    100.0 - (min_knee - 120.0) * 2.0
+                    100.0
+                    - (
+                        min_knee
+                        - 120.0
+                    ) * 2.0
                 )
-                issues.append("DEPTH")
+                issues.append(
+                    "DEPTH"
+                )
 
-            # 根据目前侧面实测阈值：17°舒适，20°以上提示。
             if trunk <= 17.0:
                 trunk_score = 100.0
             elif trunk <= 20.0:
                 trunk_score = 85.0
             else:
                 trunk_score = self._clamp(
-                    85.0 - (trunk - 20.0) * 3.0
+                    85.0
+                    - (
+                        trunk
+                        - 20.0
+                    ) * 3.0
                 )
-                issues.append("TRUNK")
+                issues.append(
+                    "TRUNK"
+                )
 
             if head <= 0.35:
                 head_score = 100.0
@@ -76,9 +205,15 @@ class SessionPerformanceAnalyzer:
                 head_score = 85.0
             else:
                 head_score = self._clamp(
-                    85.0 - (head - 0.55) * 100.0
+                    85.0
+                    - (
+                        head
+                        - 0.55
+                    ) * 100.0
                 )
-                issues.append("HEAD")
+                issues.append(
+                    "HEAD"
+                )
 
             if sync <= 0.20:
                 sync_score = 100.0
@@ -86,32 +221,58 @@ class SessionPerformanceAnalyzer:
                 sync_score = 85.0
             else:
                 sync_score = self._clamp(
-                    85.0 - (sync - 0.40) * 80.0
+                    85.0
+                    - (
+                        sync
+                        - 0.40
+                    ) * 80.0
                 )
-                issues.append("SYNC")
+                issues.append(
+                    "SYNC"
+                )
 
             component_scores = {
-                "depth": round(depth_score, 1),
-                "trunk": round(trunk_score, 1),
-                "head": round(head_score, 1),
-                "sync": round(sync_score, 1)
+                "depth": round(
+                    depth_score,
+                    1
+                ),
+                "trunk": round(
+                    trunk_score,
+                    1
+                ),
+                "head": round(
+                    head_score,
+                    1
+                ),
+                "sync": round(
+                    sync_score,
+                    1
+                )
             }
 
         elif view == "FRONT":
             head = self._safe(
-                rep_data.get("max_head_shift"),
+                rep_data.get(
+                    "max_head_shift"
+                ),
                 0.0
             )
             shoulder = self._safe(
-                rep_data.get("max_shoulder_tilt"),
+                rep_data.get(
+                    "max_shoulder_tilt"
+                ),
                 0.0
             )
             center = self._safe(
-                rep_data.get("max_center_shift"),
+                rep_data.get(
+                    "max_center_shift"
+                ),
                 0.0
             )
             sync = self._safe(
-                rep_data.get("max_sync_error"),
+                rep_data.get(
+                    "max_sync_error"
+                ),
                 0.0
             )
 
@@ -121,9 +282,15 @@ class SessionPerformanceAnalyzer:
                 head_score = 85.0
             else:
                 head_score = self._clamp(
-                    85.0 - (head - 0.30) * 100.0
+                    85.0
+                    - (
+                        head
+                        - 0.30
+                    ) * 100.0
                 )
-                issues.append("HEAD")
+                issues.append(
+                    "HEAD"
+                )
 
             if shoulder <= 0.08:
                 shoulder_score = 100.0
@@ -131,9 +298,15 @@ class SessionPerformanceAnalyzer:
                 shoulder_score = 85.0
             else:
                 shoulder_score = self._clamp(
-                    85.0 - (shoulder - 0.16) * 120.0
+                    85.0
+                    - (
+                        shoulder
+                        - 0.16
+                    ) * 120.0
                 )
-                issues.append("SHOULDER")
+                issues.append(
+                    "SHOULDER"
+                )
 
             if center <= 0.15:
                 center_score = 100.0
@@ -141,9 +314,15 @@ class SessionPerformanceAnalyzer:
                 center_score = 85.0
             else:
                 center_score = self._clamp(
-                    85.0 - (center - 0.30) * 100.0
+                    85.0
+                    - (
+                        center
+                        - 0.30
+                    ) * 100.0
                 )
-                issues.append("CENTER")
+                issues.append(
+                    "CENTER"
+                )
 
             if sync <= 0.08:
                 sync_score = 100.0
@@ -151,15 +330,55 @@ class SessionPerformanceAnalyzer:
                 sync_score = 85.0
             else:
                 sync_score = self._clamp(
-                    85.0 - (sync - 0.18) * 120.0
+                    85.0
+                    - (
+                        sync
+                        - 0.18
+                    ) * 120.0
                 )
-                issues.append("SYNC")
+                issues.append(
+                    "SYNC"
+                )
+
+            knee_tracking_score = (
+                self.score_front_knee_tracking(
+                    rep_data,
+                    issues
+                )
+            )
+
+            symmetry_score = (
+                self.score_front_symmetry(
+                    rep_data,
+                    issues
+                )
+            )
 
             component_scores = {
-                "head": round(head_score, 1),
-                "shoulder": round(shoulder_score, 1),
-                "center": round(center_score, 1),
-                "sync": round(sync_score, 1)
+                "head": round(
+                    head_score,
+                    1
+                ),
+                "shoulder": round(
+                    shoulder_score,
+                    1
+                ),
+                "center": round(
+                    center_score,
+                    1
+                ),
+                "sync": round(
+                    sync_score,
+                    1
+                ),
+                "knee_tracking": round(
+                    knee_tracking_score,
+                    1
+                ),
+                "symmetry": round(
+                    symmetry_score,
+                    1
+                )
             }
 
         else:
@@ -172,7 +391,9 @@ class SessionPerformanceAnalyzer:
         )
 
         total_time = self._safe(
-            rep_data.get("total_time"),
+            rep_data.get(
+                "total_time"
+            ),
             0.0
         )
 
@@ -214,7 +435,8 @@ class SessionPerformanceAnalyzer:
                 "best_rep": None,
                 "tempo_change": 0.0,
                 "quality_change": 0.0,
-                "trend": "NO DATA"
+                "trend": "NO DATA",
+                "top_issue": "NONE"
             }
 
         scores = [
@@ -225,7 +447,10 @@ class SessionPerformanceAnalyzer:
         valid_tempos = [
             rep["tempo_total"]
             for rep in self.reps
-            if rep.get("tempo_total", 0.0) > 0
+            if rep.get(
+                "tempo_total",
+                0.0
+            ) > 0
         ]
 
         average_score = mean(
@@ -233,7 +458,11 @@ class SessionPerformanceAnalyzer:
         )
 
         best_index = max(
-            range(len(scores)),
+            range(
+                len(
+                    scores
+                )
+            ),
             key=scores.__getitem__
         )
 
@@ -254,7 +483,8 @@ class SessionPerformanceAnalyzer:
             )
 
             quality_change = (
-                late_score - early_score
+                late_score
+                - early_score
             )
 
         if len(valid_tempos) >= 4:
@@ -280,7 +510,6 @@ class SessionPerformanceAnalyzer:
                     * 100.0
                 )
 
-        # 只描述动作表现趋势，不把它当成医学疲劳诊断。
         if len(scores) < 4:
             trend = "COLLECTING"
         elif quality_change <= -10:
@@ -290,8 +519,27 @@ class SessionPerformanceAnalyzer:
         else:
             trend = "STABLE"
 
+        issue_counter = Counter()
+
+        for rep in self.reps:
+            issue_counter.update(
+                rep.get(
+                    "issues",
+                    []
+                )
+            )
+
+        if issue_counter:
+            top_issue = issue_counter.most_common(
+                1
+            )[0][0]
+        else:
+            top_issue = "NONE"
+
         return {
-            "reps": len(self.reps),
+            "reps": len(
+                self.reps
+            ),
             "average_score": round(
                 average_score,
                 1
@@ -309,7 +557,8 @@ class SessionPerformanceAnalyzer:
                 quality_change,
                 1
             ),
-            "trend": trend
+            "trend": trend,
+            "top_issue": top_issue
         }
 
     def reset(self):
