@@ -293,6 +293,7 @@ def save_completed_rep(
         f"{analyzed['view']} | "
         f"Quality {analyzed['quality_score']:.1f} | "
         f"Detail {analyzed.get('detail_score', 0.0):.1f} "
+        f"{analyzed.get('detail_grade', 'N/A')} "
         f"{analyzed.get('detail_label', 'INFO')} | "
         f"{analyzed['quality_label']} | "
         f"{confidence_text}"
@@ -711,6 +712,52 @@ def build_session_summary_frame(
                 f"({summary.get('side_ipf_proxy_rate', 0.0):.0f}%)"
             ),
         ])
+
+    if summary.get(
+        "average_front_physique_score"
+    ) is not None:
+        result_lines.append(
+            (
+                f"Physique control: "
+                f"{summary['average_front_physique_score']:.1f}"
+            )
+        )
+
+    if summary.get(
+        "average_side_ipf_score"
+    ) is not None:
+        result_lines.append(
+            (
+                f"IPF proxy score: "
+                f"{summary['average_side_ipf_score']:.1f}"
+            )
+        )
+
+    component_averages = summary.get(
+        "detail_component_averages",
+        {}
+    )
+
+    weakest_components = sorted(
+        component_averages.items(),
+        key=lambda item: item[
+            1
+        ]
+    )[:2]
+
+    for name, score in weakest_components:
+        result_lines.append(
+            (
+                "Detail component: "
+                + str(
+                    name
+                ).replace(
+                    "_",
+                    " "
+                )
+                + f" {score:.1f}"
+            )
+        )
 
     if session_type == "TRAINING":
         result_lines.extend([
@@ -1138,6 +1185,7 @@ def draw_interface(
             (
                 f"Detail: "
                 f"{last_completed_rep.get('detail_score', 0.0):.1f}  "
+                f"{last_completed_rep.get('detail_grade', 'N/A')}  "
                 f"{last_completed_rep.get('detail_label', 'INFO')}"
             ),
             (
