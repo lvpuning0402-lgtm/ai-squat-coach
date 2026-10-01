@@ -293,6 +293,10 @@ class FrontFeedback:
                 and self.current_rep_active
             ):
                 rep_metrics = self.finalize_rep_metrics()
+            elif self.current_rep_active:
+                # 动作中途取消或分析器重新建立站立基准时，
+                # 不把残留峰值带到下一次 Rep。
+                self.reset_rep_metrics()
 
         return {
             "left_state": left_state,
