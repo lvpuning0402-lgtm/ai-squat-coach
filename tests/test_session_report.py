@@ -108,6 +108,22 @@ class SessionReportExporterTests(unittest.TestCase):
                 report["issue_counts"]["TRUNK"],
                 1
             )
+            self.assertIn(
+                "coach_feedback",
+                report
+            )
+            self.assertIn(
+                "headline",
+                report[
+                    "coach_feedback"
+                ]
+            )
+            self.assertIn(
+                "next_action",
+                report[
+                    "coach_feedback"
+                ]
+            )
 
 
 if __name__ == "__main__":
