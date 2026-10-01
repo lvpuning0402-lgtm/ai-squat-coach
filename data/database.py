@@ -602,6 +602,130 @@ class TrainingDatabase:
         return result
 
 
+    @staticmethod
+    def _stored_rep_is_reliable(
+        rep
+    ):
+        metrics = rep.get(
+            "metrics",
+            {}
+        )
+
+        explicit_valid = metrics.get(
+            "analysis_valid"
+        )
+
+        if explicit_valid is False:
+            return False
+
+        total_time = metrics.get(
+            "total_time",
+            rep.get(
+                "total_time"
+            )
+        )
+
+        if total_time is not None:
+            try:
+                total_time = float(
+                    total_time
+                )
+            except (
+                TypeError,
+                ValueError
+            ):
+                total_time = None
+
+        if (
+            total_time is not None
+            and (
+                total_time <= 0.35
+                or total_time > 12.0
+            )
+        ):
+            return False
+
+        view = rep.get(
+            "view",
+            metrics.get(
+                "view",
+                "UNKNOWN"
+            )
+        )
+
+        if view == "FRONT":
+            inward = max(
+                float(
+                    metrics.get(
+                        "max_left_inward",
+                        0.0
+                    )
+                    or 0.0
+                ),
+                float(
+                    metrics.get(
+                        "max_right_inward",
+                        0.0
+                    )
+                    or 0.0
+                )
+            )
+
+            center = float(
+                metrics.get(
+                    "max_center_shift",
+                    0.0
+                )
+                or 0.0
+            )
+
+            sync = float(
+                metrics.get(
+                    "max_sync_error",
+                    0.0
+                )
+                or 0.0
+            )
+
+            if (
+                inward > 1.0
+                or center > 1.25
+                or sync > 0.80
+            ):
+                return False
+
+        elif view == "SIDE":
+            trunk = float(
+                metrics.get(
+                    "max_trunk_lean",
+                    0.0
+                )
+                or 0.0
+            )
+            head = float(
+                metrics.get(
+                    "max_head_forward",
+                    0.0
+                )
+                or 0.0
+            )
+            sync = float(
+                metrics.get(
+                    "max_sync_error",
+                    0.0
+                )
+                or 0.0
+            )
+
+            if (
+                trunk > 80.0
+                or head > 2.0
+                or sync > 1.5
+            ):
+                return False
+
+        return True
+
     def get_training_history(
         self,
         limit=10,
@@ -639,9 +763,17 @@ class TrainingDatabase:
             ):
                 continue
 
-            reps = self.get_performance_reps(
+            all_reps = self.get_performance_reps(
                 session["id"]
             )
+
+            reps = [
+                rep
+                for rep in all_reps
+                if self._stored_rep_is_reliable(
+                    rep
+                )
+            ]
 
             if len(
                 reps
@@ -792,6 +924,14 @@ class TrainingDatabase:
                 ),
                 "reps": len(
                     reps
+                ),
+                "excluded_reps": (
+                    len(
+                        all_reps
+                    )
+                    - len(
+                        reps
+                    )
                 ),
                 "front_reps": view_counts.get(
                     "FRONT",
