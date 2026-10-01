@@ -124,6 +124,30 @@ class SessionReportExporterTests(unittest.TestCase):
                     "coach_feedback"
                 ]
             )
+            self.assertEqual(
+                report[
+                    "report_version"
+                ],
+                2
+            )
+            self.assertIn(
+                "score_explanation",
+                report
+            )
+            self.assertEqual(
+                report[
+                    "score_explanation"
+                ][
+                    "method"
+                ],
+                "WEIGHTED_CONTINUOUS_DEDUCTION"
+            )
+            self.assertIn(
+                "formula",
+                report[
+                    "score_explanation"
+                ]
+            )
 
 
 if __name__ == "__main__":
