@@ -170,11 +170,16 @@ class CompetitionDetailEvaluator:
             - review_min
         ) / transition
 
+        review_ceiling = (
+            watch_floor
+            - 0.1
+        )
+
         return round(
             cls._clamp(
-                watch_floor
+                review_ceiling
                 - (
-                    watch_floor
+                    review_ceiling
                     - review_floor
                 )
                 * min(
@@ -182,7 +187,7 @@ class CompetitionDetailEvaluator:
                     1.0
                 ),
                 review_floor,
-                watch_floor
+                review_ceiling
             ),
             1
         )
