@@ -177,8 +177,35 @@ class SessionReportExporter:
             session_type=session_type
         )
 
+        score_explanation = {
+            "method": "WEIGHTED_CONTINUOUS_DEDUCTION",
+            "formula": (
+                "lost_points = normalized_weight * "
+                "(100 - component_score)"
+            ),
+            "top_detail_deductions": summary.get(
+                "top_detail_deductions",
+                []
+            ),
+            "phase_score_averages": summary.get(
+                "phase_score_averages",
+                {}
+            ),
+            "phase_deduction_summary": summary.get(
+                "phase_deduction_summary",
+                {}
+            ),
+            "weakest_phase": summary.get(
+                "weakest_phase"
+            ),
+            "note": (
+                "Deductions explain the project coaching score. "
+                "They are not federation penalty points."
+            )
+        }
+
         return {
-            "report_version": 1,
+            "report_version": 2,
             "session_id": session_id,
             "session_type": session_type,
             "report_context": report_context,
@@ -188,6 +215,7 @@ class SessionReportExporter:
             "summary": summary,
             "summary_note": summary_note,
             "coach_feedback": coach_feedback,
+            "score_explanation": score_explanation,
             "view_summary": view_summary,
             "issue_counts": dict(
                 issue_counter
