@@ -4,6 +4,7 @@ from camera.camera import (
     _rep_detail_state,
     _rep_timeline_line,
     build_session_summary_frame,
+    format_phase_scores,
 )
 
 
@@ -48,6 +49,15 @@ class SessionSummaryScreenTests(unittest.TestCase):
             "detail_watch_reps": 1,
             "detail_watch_events": 1,
             "detail_review_events": 1,
+            "phase_score_averages": {
+                "descent": 88.0,
+                "bottom": 76.0,
+                "ascent": 91.0,
+            },
+            "weakest_phase": {
+                "phase": "bottom",
+                "score": 76.0,
+            },
             "top_detail_warnings": [
                 {
                     "name": "shoulder_level",
@@ -90,6 +100,31 @@ class SessionSummaryScreenTests(unittest.TestCase):
                 frame.max()
             ),
             24
+        )
+
+    def test_format_phase_scores_supports_summary_and_rep_shapes(self):
+        self.assertEqual(
+            format_phase_scores({
+                "descent": 91.2,
+                "bottom": 82.3,
+                "ascent": 94.4,
+            }),
+            "91.2 / 82.3 / 94.4"
+        )
+
+        self.assertEqual(
+            format_phase_scores({
+                "descent": {
+                    "score": 91.2
+                },
+                "bottom": {
+                    "score": 82.3
+                },
+                "ascent": {
+                    "score": 94.4
+                },
+            }),
+            "91.2 / 82.3 / 94.4"
         )
 
     def test_timeline_separates_standard_and_detail_state(self):
