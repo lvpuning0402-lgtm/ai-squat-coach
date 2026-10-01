@@ -1,6 +1,7 @@
 import unittest
 
 from camera.camera import (
+    _rep_detail_state,
     _rep_timeline_line,
     build_session_summary_frame,
 )
@@ -43,6 +44,18 @@ class SessionSummaryScreenTests(unittest.TestCase):
             "reps": 2,
             "valid_reps": 2,
             "average_score": 91.0,
+            "average_detail_score": 84.0,
+            "detail_watch_reps": 1,
+            "detail_watch_events": 1,
+            "detail_review_events": 1,
+            "top_detail_warnings": [
+                {
+                    "name": "shoulder_level",
+                    "watch": 1,
+                    "review": 0,
+                    "total": 1
+                }
+            ],
             "standard_passes": 1,
             "standard_pass_rate": 50.0,
             "best_rep": 1,
@@ -77,6 +90,57 @@ class SessionSummaryScreenTests(unittest.TestCase):
                 frame.max()
             ),
             24
+        )
+
+    def test_timeline_separates_standard_and_detail_state(self):
+        rep = {
+            "rep": 1,
+            "view": "FRONT",
+            "quality_score": 100.0,
+            "standard_met": True,
+            "issues": [],
+            "analysis_valid": True,
+            "set_valid": True,
+            "detail_warnings": [
+                "shoulder_level",
+                "center_balance"
+            ],
+            "detail_checks": {
+                "shoulder_level": {
+                    "state": "WATCH"
+                },
+                "center_balance": {
+                    "state": "REVIEW"
+                }
+            }
+        }
+
+        detail_state, detail_text = (
+            _rep_detail_state(
+                rep
+            )
+        )
+
+        self.assertEqual(
+            detail_state,
+            "REVIEW"
+        )
+        self.assertIn(
+            "+1",
+            detail_text
+        )
+
+        line = _rep_timeline_line(
+            rep
+        )
+
+        self.assertIn(
+            "PASS",
+            line
+        )
+        self.assertIn(
+            "REVIEW",
+            line
         )
 
     def test_timeline_marks_excluded_rep(self):
