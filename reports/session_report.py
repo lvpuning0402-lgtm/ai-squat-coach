@@ -246,6 +246,10 @@ class SessionReportExporter:
             "standard_score",
             "quality_score",
             "quality_label",
+            "detail_profile",
+            "detail_score",
+            "detail_label",
+            "detail_warnings",
             "descent_time",
             "bottom_time",
             "ascent_time",
@@ -262,11 +266,15 @@ class SessionReportExporter:
             "ipf_depth_proxy_met",
             "max_head_shift",
             "max_shoulder_tilt",
+            "max_hip_tilt",
+            "max_knee_angle_asymmetry",
             "max_center_shift",
             "max_sync_error",
             "max_left_inward",
             "max_right_inward",
-            "max_symmetry_value"
+            "max_symmetry_value",
+            "max_knee_angle",
+            "shin_angle_at_min_knee"
         ]
 
         with path.open(
@@ -332,6 +340,23 @@ class SessionReportExporter:
                     ),
                     "quality_label": rep.get(
                         "quality_label"
+                    ),
+                    "detail_profile": rep.get(
+                        "detail_profile"
+                    ),
+                    "detail_score": self._safe_number(
+                        rep.get(
+                            "detail_score"
+                        )
+                    ),
+                    "detail_label": rep.get(
+                        "detail_label"
+                    ),
+                    "detail_warnings": "|".join(
+                        rep.get(
+                            "detail_warnings",
+                            []
+                        )
                     ),
                     "descent_time": self._safe_number(
                         rep.get(
@@ -410,6 +435,16 @@ class SessionReportExporter:
                             "max_shoulder_tilt"
                         )
                     ),
+                    "max_hip_tilt": self._safe_number(
+                        rep.get(
+                            "max_hip_tilt"
+                        )
+                    ),
+                    "max_knee_angle_asymmetry": self._safe_number(
+                        rep.get(
+                            "max_knee_angle_asymmetry"
+                        )
+                    ),
                     "max_center_shift": self._safe_number(
                         rep.get(
                             "max_center_shift"
@@ -433,6 +468,16 @@ class SessionReportExporter:
                     "max_symmetry_value": self._safe_number(
                         rep.get(
                             "max_symmetry_value"
+                        )
+                    ),
+                    "max_knee_angle": self._safe_number(
+                        rep.get(
+                            "max_knee_angle"
+                        )
+                    ),
+                    "shin_angle_at_min_knee": self._safe_number(
+                        rep.get(
+                            "shin_angle_at_min_knee"
                         )
                     )
                 }
