@@ -21,6 +21,7 @@ from standards.squat_standard import (
     STANDARD_NAME,
     VISION_TOLERANCE,
 )
+from standards.competition_profiles import DETAIL_TOLERANCE
 
 
 DISPLAY_MODES = [
@@ -59,6 +60,40 @@ def metric_state(
 
     if value >= bad_threshold:
         return bad_text
+
+    return "WATCH"
+
+
+def detail_lower_state(
+    value,
+    good_max,
+    review_min
+):
+    if value is None:
+        return "INFO"
+
+    if value <= good_max:
+        return "PASS"
+
+    if value >= review_min:
+        return "REVIEW"
+
+    return "WATCH"
+
+
+def detail_higher_state(
+    value,
+    pass_min,
+    review_below
+):
+    if value is None:
+        return "INFO"
+
+    if value >= pass_min:
+        return "PASS"
+
+    if value < review_below:
+        return "REVIEW"
 
     return "WATCH"
 
@@ -467,17 +502,33 @@ def _rep_timeline_line(
         []
     )
 
-    issue_text = (
-        ", ".join(
+    detail_warnings = rep.get(
+        "detail_warnings",
+        []
+    )
+
+    if issues:
+        issue_text = ", ".join(
             str(issue).replace(
                 "_",
                 " "
             )
             for issue in issues
         )
-        if issues
-        else "OK"
-    )
+    elif detail_warnings:
+        issue_text = (
+            "DETAIL "
+            + str(
+                detail_warnings[
+                    0
+                ]
+            ).replace(
+                "_",
+                " "
+            )
+        )
+    else:
+        issue_text = "OK"
 
     try:
         rep_text = (
@@ -571,6 +622,15 @@ def build_session_summary_frame(
             f"{summary.get('standard_passes', 0)}/"
             f"{summary.get('valid_reps', 0)} "
             f"({summary.get('standard_pass_rate', 0.0):.0f}%)"
+        ),
+        (
+            f"Detail score: "
+            f"{summary.get('average_detail_score', 0.0):.1f}"
+        ),
+        (
+            f"Detail watch: "
+            f"{summary.get('detail_watch_reps', 0)}/"
+            f"{summary.get('valid_reps', 0)}"
         ),
         (
             f"Best rep: #"
@@ -985,6 +1045,11 @@ def draw_interface(
                 f"Quality: "
                 f"{last_completed_rep['quality_score']:.1f}  "
                 f"{last_completed_rep['quality_label']}"
+            ),
+            (
+                f"Detail: "
+                f"{last_completed_rep.get('detail_score', 0.0):.1f}  "
+                f"{last_completed_rep.get('detail_label', 'INFO')}"
             ),
             (
                 f"D/B/U: "
@@ -1567,6 +1632,66 @@ def run_camera():
                             )
                         ]
 
+                        head_detail = detail_lower_state(
+                            front_result[
+                                "head_shift"
+                            ],
+                            DETAIL_TOLERANCE[
+                                "head_shift_good_max"
+                            ],
+                            DETAIL_TOLERANCE[
+                                "head_shift_review_min"
+                            ]
+                        )
+
+                        shoulder_detail = detail_lower_state(
+                            front_result[
+                                "shoulder_tilt"
+                            ],
+                            DETAIL_TOLERANCE[
+                                "shoulder_tilt_good_max"
+                            ],
+                            DETAIL_TOLERANCE[
+                                "shoulder_tilt_review_min"
+                            ]
+                        )
+
+                        hip_detail = detail_lower_state(
+                            front_result[
+                                "hip_tilt"
+                            ],
+                            DETAIL_TOLERANCE[
+                                "hip_tilt_good_max"
+                            ],
+                            DETAIL_TOLERANCE[
+                                "hip_tilt_review_min"
+                            ]
+                        )
+
+                        center_detail = detail_lower_state(
+                            front_result[
+                                "center_shift"
+                            ],
+                            DETAIL_TOLERANCE[
+                                "center_shift_good_max"
+                            ],
+                            DETAIL_TOLERANCE[
+                                "center_shift_review_min"
+                            ]
+                        )
+
+                        knee_sym_detail = detail_lower_state(
+                            front_result[
+                                "knee_angle_asymmetry"
+                            ],
+                            DETAIL_TOLERANCE[
+                                "knee_angle_asym_good_max"
+                            ],
+                            DETAIL_TOLERANCE[
+                                "knee_angle_asym_review_min"
+                            ]
+                        )
+
                         detail_form_lines = [
                             (
                                 f"Knees "
@@ -1585,24 +1710,29 @@ def run_camera():
                                 + f" [{sync_state}]"
                             ),
                             (
-                                f"Head shift "
-                                f"{front_result['head_shift']:.2f} "
-                                f"[INFO]"
-                            ),
-                            (
-                                f"Shoulder tilt "
+                                f"Shoulder level "
                                 f"{front_result['shoulder_tilt']:.2f} "
-                                f"[INFO]"
+                                f"[{shoulder_detail}]"
                             ),
                             (
-                                f"Center shift "
+                                f"Hip level "
+                                f"{front_result['hip_tilt']:.2f} "
+                                f"[{hip_detail}]"
+                            ),
+                            (
+                                f"Center balance "
                                 f"{front_result['center_shift']:.2f} "
-                                f"[INFO]"
+                                f"[{center_detail}]"
                             ),
                             (
-                                f"Symmetry "
-                                f"{front_form['symmetry_value']:.2f} "
-                                f"[INFO]"
+                                f"Head control "
+                                f"{front_result['head_shift']:.2f} "
+                                f"[{head_detail}]"
+                            ),
+                            (
+                                f"Knee symmetry "
+                                f"{front_result['knee_angle_asymmetry']:.1f} deg "
+                                f"[{knee_sym_detail}]"
                             )
                         ]
 
@@ -1624,8 +1754,13 @@ def run_camera():
                                 f"{front_result['hip_descent']:.3f}"
                             ),
                             (
-                                f"Avg knee angle: "
-                                f"{front_result['average_knee_angle']:.1f}"
+                                f"Knee L/R: "
+                                f"{front_result['left_knee_angle']:.1f} / "
+                                f"{front_result['right_knee_angle']:.1f}"
+                            ),
+                            (
+                                f"Hip tilt: "
+                                f"{front_result['hip_tilt']:.3f}"
                             ),
                             (
                                 f"Inward L/R: "
@@ -1912,10 +2047,40 @@ def run_camera():
                         )
                     ]
 
+                    side_head_detail = detail_lower_state(
+                        side_result[
+                            "head_forward"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "side_head_forward_good_max"
+                        ],
+                        DETAIL_TOLERANCE[
+                            "side_head_forward_review_min"
+                        ]
+                    )
+
+                    ipf_state = (
+                        "READY"
+                        if side_result[
+                            "phase"
+                        ] == "STANDING"
+                        else (
+                            "PASS"
+                            if side_result[
+                                "ipf_depth_proxy_met"
+                            ]
+                            else "REVIEW"
+                        )
+                    )
+
                     detail_form_lines = [
                         (
                             f"Depth "
                             f"{side_result['depth']}"
+                        ),
+                        (
+                            f"IPF depth proxy "
+                            f"[{ipf_state}]"
                         ),
                         (
                             "Ascent sync "
@@ -1929,14 +2094,25 @@ def run_camera():
                             + f" [{sync_state}]"
                         ),
                         (
-                            f"Trunk lean "
-                            f"{side_result['trunk_lean']:.1f} deg "
-                            f"[INFO]"
+                            f"Knee angle "
+                            f"{side_result['knee_angle']:.1f} deg [INFO]"
                         ),
                         (
-                            f"Head forward "
+                            f"Hip angle "
+                            f"{side_result['hip_angle']:.1f} deg [INFO]"
+                        ),
+                        (
+                            f"Trunk lean "
+                            f"{side_result['trunk_lean']:.1f} deg [INFO]"
+                        ),
+                        (
+                            f"Shin angle "
+                            f"{side_result['shin_angle']:.1f} deg [INFO]"
+                        ),
+                        (
+                            f"Head control "
                             f"{side_result['head_forward']:.2f} "
-                            f"[INFO]"
+                            f"[{side_head_detail}]"
                         )
                     ]
 
@@ -1965,6 +2141,10 @@ def run_camera():
                         (
                             f"Hip angle: "
                             f"{side_result['hip_angle']:.1f}"
+                        ),
+                        (
+                            f"Shin angle: "
+                            f"{side_result['shin_angle']:.1f}"
                         ),
                         (
                             f"Depth margin: "
