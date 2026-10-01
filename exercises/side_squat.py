@@ -18,6 +18,8 @@ class SideSquatAnalyzer:
     - 头部前伸
     - 肩髋同步
     - 动作节奏
+    - 重新站位后的基准恢复
+    - 未完成动作的自动取消
     """
 
     def __init__(self):
@@ -35,20 +37,29 @@ class SideSquatAnalyzer:
 
         self.phase_confirm_frames = 3
         self.standing_confirm_frames = 6
+        self.abort_confirm_frames = 6
 
         self.descending_frames = 0
         self.bottom_frames = 0
         self.ascending_frames = 0
         self.standing_frames = 0
+        self.abort_frames = 0
 
         self.start_angle = 155.0
         self.bottom_angle = 120.0
         self.standing_angle = 155.0
+        self.standing_like_angle = 165.0
 
         self.baseline_shoulder_y = None
         self.baseline_hip_y = None
         self.baseline_torso_length = None
         self.baseline_alpha = 0.04
+
+        # 站直时若相对旧基准发生很大位置或尺度变化，
+        # 视为重新站位，而不是新的动作。
+        self.reanchor_vertical_shift = 0.75
+        self.reanchor_scale_low = 0.70
+        self.reanchor_scale_high = 1.35
 
         self.rep_start_time = None
         self.descent_start_time = None
@@ -85,6 +96,13 @@ class SideSquatAnalyzer:
             )
         )
 
+    def reset_phase_counters(self):
+        self.descending_frames = 0
+        self.bottom_frames = 0
+        self.ascending_frames = 0
+        self.standing_frames = 0
+        self.abort_frames = 0
+
     def update_baseline(
         self,
         shoulder,
@@ -107,14 +125,27 @@ class SideSquatAnalyzer:
         alpha = self.baseline_alpha
 
         self.baseline_shoulder_y += alpha * (
-            shoulder[1] - self.baseline_shoulder_y
+            shoulder[1]
+            - self.baseline_shoulder_y
         )
         self.baseline_hip_y += alpha * (
-            hip[1] - self.baseline_hip_y
+            hip[1]
+            - self.baseline_hip_y
         )
         self.baseline_torso_length += alpha * (
-            torso_length - self.baseline_torso_length
+            torso_length
+            - self.baseline_torso_length
         )
+
+    def clear_motion_buffers(self):
+        self.knee_buffer.clear()
+        self.hip_buffer.clear()
+        self.trunk_buffer.clear()
+        self.head_buffer.clear()
+        self.knee_velocity_buffer.clear()
+        self.sync_buffer.clear()
+
+        self.previous_knee_angle = 180.0
 
     def reset_rep_metrics(self):
         self.rep_start_time = None
@@ -128,27 +159,77 @@ class SideSquatAnalyzer:
         self.current_max_head_forward = 0.0
         self.current_max_sync_error = 0.0
 
+    def reanchor_baseline(
+        self,
+        shoulder,
+        hip
+    ):
+        """
+        重新建立侧面站立基准。
+
+        适用于：
+        - 走近 / 走远后重新站好
+        - 人在画面中上下重新站位
+        - 未完成深蹲后重新站直
+        - 切换跟踪腿后重新稳定
+        """
+        torso_length = max(
+            math.dist(
+                shoulder,
+                hip
+            ),
+            0.01
+        )
+
+        self.phase = "STANDING"
+        self.reset_phase_counters()
+        self.reset_rep_metrics()
+        self.clear_motion_buffers()
+
+        self.baseline_shoulder_y = shoulder[1]
+        self.baseline_hip_y = hip[1]
+        self.baseline_torso_length = torso_length
+
     def complete_rep(self, now):
         descent_time = None
         bottom_time = None
         ascent_time = None
         total_time = None
 
-        if self.descent_start_time is not None and self.bottom_start_time is not None:
-            descent_time = self.bottom_start_time - self.descent_start_time
+        if (
+            self.descent_start_time is not None
+            and self.bottom_start_time is not None
+        ):
+            descent_time = (
+                self.bottom_start_time
+                - self.descent_start_time
+            )
 
-        if self.bottom_start_time is not None and self.ascent_start_time is not None:
-            bottom_time = self.ascent_start_time - self.bottom_start_time
+        if (
+            self.bottom_start_time is not None
+            and self.ascent_start_time is not None
+        ):
+            bottom_time = (
+                self.ascent_start_time
+                - self.bottom_start_time
+            )
 
         if self.ascent_start_time is not None:
-            ascent_time = now - self.ascent_start_time
+            ascent_time = (
+                now
+                - self.ascent_start_time
+            )
 
         if self.rep_start_time is not None:
-            total_time = now - self.rep_start_time
+            total_time = (
+                now
+                - self.rep_start_time
+            )
 
         rom_degrees = max(
             0.0,
-            180.0 - self.current_min_knee_angle
+            180.0
+            - self.current_min_knee_angle
         )
 
         self.last_rep = {
@@ -168,6 +249,7 @@ class SideSquatAnalyzer:
 
         result = self.last_rep
         self.reset_rep_metrics()
+
         return result
 
     def analyze(
@@ -225,7 +307,8 @@ class SideSquatAnalyzer:
         )
 
         head_forward = abs(
-            nose[0] - shoulder[0]
+            nose[0]
+            - shoulder[0]
         ) / torso_length
 
         self.head_buffer.append(
@@ -236,10 +319,29 @@ class SideSquatAnalyzer:
         )
 
         if self.baseline_shoulder_y is None:
-            self.update_baseline(
+            self.reanchor_baseline(
                 shoulder,
                 hip
             )
+
+            # reanchor 会清空缓冲，因此把当前帧重新放回缓冲。
+            self.knee_buffer.append(
+                knee_angle
+            )
+            self.hip_buffer.append(
+                hip_angle
+            )
+            self.trunk_buffer.append(
+                trunk_lean
+            )
+            self.head_buffer.append(
+                head_forward
+            )
+
+            smooth_knee = knee_angle
+            smooth_hip = hip_angle
+            smooth_trunk = trunk_lean
+            smooth_head = head_forward
 
         baseline_length = max(
             self.baseline_torso_length,
@@ -264,6 +366,7 @@ class SideSquatAnalyzer:
         self.sync_buffer.append(
             sync_error
         )
+
         smooth_sync = median(
             self.sync_buffer
         )
@@ -272,87 +375,242 @@ class SideSquatAnalyzer:
             smooth_knee
             - self.previous_knee_angle
         )
-        self.previous_knee_angle = smooth_knee
+
+        self.previous_knee_angle = (
+            smooth_knee
+        )
 
         self.knee_velocity_buffer.append(
             knee_velocity
         )
+
         smooth_knee_velocity = median(
             self.knee_velocity_buffer
         )
 
+        scale_ratio = (
+            torso_length
+            / baseline_length
+        )
+
+        standing_like = (
+            smooth_knee
+            >= self.standing_like_angle
+        )
+
         rep_completed = False
         rep_summary = None
+        rep_aborted = False
+        baseline_reset = False
 
-        if self.phase == "STANDING":
-            self.update_baseline(
+        vertical_shift = max(
+            abs(
+                shoulder_descent
+            ),
+            abs(
+                hip_descent
+            )
+        )
+
+        baseline_mismatch = (
+            standing_like
+            and (
+                vertical_shift
+                > self.reanchor_vertical_shift
+                or scale_ratio
+                < self.reanchor_scale_low
+                or scale_ratio
+                > self.reanchor_scale_high
+            )
+        )
+
+        if baseline_mismatch:
+            rep_aborted = (
+                self.phase
+                != "STANDING"
+            )
+            baseline_reset = True
+
+            self.reanchor_baseline(
                 shoulder,
                 hip
             )
 
-            if (
-                smooth_knee < self.start_angle
-                and smooth_knee_velocity < -0.15
-            ):
-                self.descending_frames += 1
-            else:
-                self.descending_frames = 0
-
-            if self.descending_frames >= self.phase_confirm_frames:
-                self.phase = "DESCENDING"
-                self.rep_start_time = now
-                self.descent_start_time = now
-                self.current_min_knee_angle = smooth_knee
-                self.current_min_hip_angle = smooth_hip
-
-        elif self.phase == "DESCENDING":
-            bottom_signal = (
-                smooth_knee < self.bottom_angle
-                and (
-                    abs(smooth_knee_velocity) < 0.30
-                    or smooth_knee_velocity > 0.10
-                )
+            self.knee_buffer.append(
+                knee_angle
+            )
+            self.hip_buffer.append(
+                hip_angle
+            )
+            self.trunk_buffer.append(
+                trunk_lean
+            )
+            self.head_buffer.append(
+                head_forward
+            )
+            self.sync_buffer.append(
+                0.0
             )
 
-            if bottom_signal:
-                self.bottom_frames += 1
-            else:
-                self.bottom_frames = 0
+            smooth_knee = knee_angle
+            smooth_hip = hip_angle
+            smooth_trunk = trunk_lean
+            smooth_head = head_forward
+            smooth_sync = 0.0
+            smooth_knee_velocity = 0.0
+            shoulder_descent = 0.0
+            hip_descent = 0.0
+            scale_ratio = 1.0
 
-            if self.bottom_frames >= self.phase_confirm_frames:
-                self.phase = "BOTTOM"
-                self.bottom_start_time = now
-
-        elif self.phase == "BOTTOM":
-            if smooth_knee_velocity > 0.15:
-                self.ascending_frames += 1
-            else:
-                self.ascending_frames = 0
-
-            if self.ascending_frames >= self.phase_confirm_frames:
-                self.phase = "ASCENDING"
-                self.ascent_start_time = now
-
-        elif self.phase == "ASCENDING":
-            if smooth_knee > self.standing_angle:
-                self.standing_frames += 1
-            else:
-                self.standing_frames = 0
-
-            if self.standing_frames >= self.standing_confirm_frames:
-                self.phase = "STANDING"
-                self.count += 1
-                rep_completed = True
-                rep_summary = self.complete_rep(
-                    now
+        if not baseline_reset:
+            if self.phase == "STANDING":
+                self.update_baseline(
+                    shoulder,
+                    hip
                 )
 
-                self.descending_frames = 0
-                self.bottom_frames = 0
-                self.ascending_frames = 0
-                self.standing_frames = 0
+                if (
+                    smooth_knee
+                    < self.start_angle
+                    and smooth_knee_velocity
+                    < -0.15
+                ):
+                    self.descending_frames += 1
+                else:
+                    self.descending_frames = 0
 
-        if self.phase != "STANDING":
+                if (
+                    self.descending_frames
+                    >= self.phase_confirm_frames
+                ):
+                    self.phase = "DESCENDING"
+                    self.rep_start_time = now
+                    self.descent_start_time = now
+                    self.current_min_knee_angle = (
+                        smooth_knee
+                    )
+                    self.current_min_hip_angle = (
+                        smooth_hip
+                    )
+
+            elif self.phase == "DESCENDING":
+                returned_to_standing = (
+                    standing_like
+                    and smooth_knee_velocity
+                    >= -0.10
+                )
+
+                if returned_to_standing:
+                    self.abort_frames += 1
+                else:
+                    self.abort_frames = 0
+
+                if (
+                    self.abort_frames
+                    >= self.abort_confirm_frames
+                ):
+                    rep_aborted = True
+
+                    self.reanchor_baseline(
+                        shoulder,
+                        hip
+                    )
+
+                    self.knee_buffer.append(
+                        knee_angle
+                    )
+                    self.hip_buffer.append(
+                        hip_angle
+                    )
+                    self.trunk_buffer.append(
+                        trunk_lean
+                    )
+                    self.head_buffer.append(
+                        head_forward
+                    )
+                    self.sync_buffer.append(
+                        0.0
+                    )
+
+                    smooth_knee = knee_angle
+                    smooth_hip = hip_angle
+                    smooth_trunk = trunk_lean
+                    smooth_head = head_forward
+                    smooth_sync = 0.0
+                    smooth_knee_velocity = 0.0
+                    shoulder_descent = 0.0
+                    hip_descent = 0.0
+                    scale_ratio = 1.0
+
+                else:
+                    bottom_signal = (
+                        smooth_knee
+                        < self.bottom_angle
+                        and (
+                            abs(
+                                smooth_knee_velocity
+                            )
+                            < 0.30
+                            or smooth_knee_velocity
+                            > 0.10
+                        )
+                    )
+
+                    if bottom_signal:
+                        self.bottom_frames += 1
+                    else:
+                        self.bottom_frames = 0
+
+                    if (
+                        self.bottom_frames
+                        >= self.phase_confirm_frames
+                    ):
+                        self.phase = "BOTTOM"
+                        self.bottom_start_time = now
+                        self.abort_frames = 0
+
+            elif self.phase == "BOTTOM":
+                if smooth_knee_velocity > 0.15:
+                    self.ascending_frames += 1
+                else:
+                    self.ascending_frames = 0
+
+                if (
+                    self.ascending_frames
+                    >= self.phase_confirm_frames
+                ):
+                    self.phase = "ASCENDING"
+                    self.ascent_start_time = now
+                    self.abort_frames = 0
+
+            elif self.phase == "ASCENDING":
+                if (
+                    smooth_knee
+                    > self.standing_angle
+                ):
+                    self.standing_frames += 1
+                else:
+                    self.standing_frames = 0
+
+                if (
+                    self.standing_frames
+                    >= self.standing_confirm_frames
+                ):
+                    self.phase = "STANDING"
+                    self.count += 1
+                    rep_completed = True
+
+                    rep_summary = self.complete_rep(
+                        now
+                    )
+
+                    self.reset_phase_counters()
+
+        if (
+            self.phase
+            != "STANDING"
+            and not rep_aborted
+        ):
             self.current_min_knee_angle = min(
                 self.current_min_knee_angle,
                 smooth_knee
@@ -384,8 +642,12 @@ class SideSquatAnalyzer:
             depth = "VERY DEEP"
 
         phase_elapsed = 0.0
+
         if self.rep_start_time is not None:
-            phase_elapsed = now - self.rep_start_time
+            phase_elapsed = (
+                now
+                - self.rep_start_time
+            )
 
         return {
             "count": self.count,
@@ -393,15 +655,21 @@ class SideSquatAnalyzer:
             "phase": self.phase,
             "rep_completed": rep_completed,
             "rep_summary": rep_summary,
+            "rep_aborted": rep_aborted,
+            "baseline_reset": baseline_reset,
             "knee_angle": smooth_knee,
             "hip_angle": smooth_hip,
             "trunk_lean": smooth_trunk,
             "head_forward": smooth_head,
             "shoulder_hip_sync": smooth_sync,
             "knee_velocity": smooth_knee_velocity,
+            "shoulder_descent": shoulder_descent,
+            "hip_descent": hip_descent,
+            "body_scale_ratio": scale_ratio,
             "rom_degrees": max(
                 0.0,
-                180.0 - self.current_min_knee_angle
+                180.0
+                - self.current_min_knee_angle
             ),
             "phase_elapsed": phase_elapsed,
             "depth": depth,
@@ -411,19 +679,8 @@ class SideSquatAnalyzer:
     def reset(self):
         self.phase = "STANDING"
 
-        self.descending_frames = 0
-        self.bottom_frames = 0
-        self.ascending_frames = 0
-        self.standing_frames = 0
-
-        self.knee_buffer.clear()
-        self.hip_buffer.clear()
-        self.trunk_buffer.clear()
-        self.head_buffer.clear()
-        self.knee_velocity_buffer.clear()
-        self.sync_buffer.clear()
-
-        self.previous_knee_angle = 180.0
+        self.reset_phase_counters()
+        self.clear_motion_buffers()
 
         self.baseline_shoulder_y = None
         self.baseline_hip_y = None
