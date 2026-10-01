@@ -33,7 +33,8 @@ Controls:
 
 - M — switch SIMPLE / DETAIL / DEBUG
 - T — switch TEST / TRAINING before the first completed rep
-- Q or ESC — exit
+- Q or ESC — finish the set and open the visual session summary
+- Q / ESC / Enter on the summary screen — close
 
 ## Tests
 
@@ -51,6 +52,13 @@ Completed sets now include a deterministic coaching summary:
 The coach layer only explains metrics already measured by the pose system. It does not make medical diagnoses, and TEST sessions do not generate formal training-trend conclusions.
 
 Session JSON reports include a `coach_feedback` object. Formal history JSON reports include `progress_feedback`.
+
+When a set is ended with Q / ESC, the camera window now switches to a visual session summary with:
+
+- valid reps, score and standard pass rate;
+- GENERAL depth / IPF proxy rates when SIDE reps are present;
+- the main AI Coach focus and next cue;
+- a per-rep timeline showing PASS / REVIEW / EXCLUDED, score and issue.
 
 ## Training history
 
