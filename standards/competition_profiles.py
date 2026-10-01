@@ -133,3 +133,62 @@ DETAIL_GRADE_BANDS = [
     (0.0, "E"),
 ]
 
+# Phase-specific coaching weights. These are engineering/coaching priorities,
+# not official federation score sheets.
+PHASE_DETAIL_WEIGHTS = {
+    "FRONT": {
+        "descent": {
+            "knee_tracking": 0.26,
+            "center_balance": 0.18,
+            "hip_level": 0.15,
+            "knee_angle_symmetry": 0.15,
+            "shoulder_level": 0.10,
+            "head_control": 0.06,
+            "knee_height_symmetry": 0.10,
+        },
+        "bottom": {
+            "knee_tracking": 0.25,
+            "center_balance": 0.20,
+            "hip_level": 0.18,
+            "knee_angle_symmetry": 0.17,
+            "shoulder_level": 0.10,
+            "head_control": 0.05,
+            "knee_height_symmetry": 0.05,
+        },
+        "ascent": {
+            "ascent_control": 0.30,
+            "knee_tracking": 0.20,
+            "center_balance": 0.14,
+            "hip_level": 0.12,
+            "shoulder_level": 0.08,
+            "knee_angle_symmetry": 0.08,
+            "head_control": 0.04,
+            "knee_height_symmetry": 0.04,
+        },
+    },
+    "SIDE": {
+        "descent": {
+            "head_control": 0.55,
+            "trunk_stability": 0.45,
+        },
+        "bottom": {
+            "general_depth": 0.65,
+            "head_control": 0.20,
+            "trunk_stability": 0.15,
+        },
+        "ascent": {
+            "ascent_control": 0.50,
+            "lockout_proxy": 0.25,
+            "head_control": 0.15,
+            "trunk_stability": 0.10,
+        },
+    },
+}
+
+PHASE_TOLERANCE = {
+    # Range of side-view trunk lean within a phase.
+    # This scores stability/change, not the absolute torso angle.
+    "trunk_range_good_max": 8.0,
+    "trunk_range_review_min": 18.0,
+}
+
