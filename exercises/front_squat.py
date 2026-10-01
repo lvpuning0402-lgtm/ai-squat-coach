@@ -716,6 +716,20 @@ class FrontSquatAnalyzer:
                     self.abort_frames = 0
 
                     if turning_up:
+                        # Preserve a bottom snapshot even when the athlete
+                        # reverses immediately without a visible pause.
+                        self._record_phase_metrics(
+                            "BOTTOM",
+                            smooth_head_shift,
+                            smooth_shoulder_tilt,
+                            smooth_hip_tilt,
+                            smooth_center_shift,
+                            smooth_knee_angle_asymmetry,
+                            sync_error,
+                            None,
+                            average_knee_angle
+                        )
+
                         self.phase = "ASCENDING"
                         self.ascent_start_time = now
                         self.ascent_start_shoulder_descent = (
