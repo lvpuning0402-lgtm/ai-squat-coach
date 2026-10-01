@@ -1,11 +1,11 @@
-from statistics import mean
-
 from standards.competition_profiles import (
     COMPETITION_LENSES,
+    CONTINUOUS_SCORING,
+    DETAIL_GRADE_BANDS,
     DETAIL_PROFILE_NAME,
     DETAIL_PROFILE_VERSION,
-    DETAIL_STATE_SCORE,
     DETAIL_TOLERANCE,
+    DETAIL_WEIGHTS,
 )
 from standards.squat_standard import VISION_TOLERANCE
 
@@ -14,11 +14,9 @@ class CompetitionDetailEvaluator:
     """
     Secondary movement-quality evaluation.
 
-    This layer is deliberately separate from the hard squat standard:
-    - GENERAL_STRENGTH remains the primary pass/fail profile.
-    - IPF is represented only by measurable webcam proxies.
-    - IFBB/NPC judging concepts are used only as a symmetry/balance/
-      presentation-inspired movement-control lens.
+    The hard GENERAL_STRENGTH pass/fail standard is kept separate from this
+    weighted detail layer. The weights and continuous score curves are project
+    coaching heuristics, not official federation judging sheets.
     """
 
     @staticmethod
@@ -38,6 +36,20 @@ class CompetitionDetailEvaluator:
             ValueError
         ):
             return default
+
+    @staticmethod
+    def _clamp(
+        value,
+        low=0.0,
+        high=100.0
+    ):
+        return max(
+            low,
+            min(
+                high,
+                value
+            )
+        )
 
     @staticmethod
     def _lower_state(
@@ -88,43 +100,202 @@ class CompetitionDetailEvaluator:
             else "REVIEW"
         )
 
-    @staticmethod
-    def _state_score(
-        state
-    ):
-        return DETAIL_STATE_SCORE.get(
-            state
-        )
-
     @classmethod
-    def _score_states(
+    def _lower_score(
         cls,
-        checks
+        value,
+        good_max,
+        review_min
     ):
-        scores = [
-            cls._state_score(
-                item.get(
-                    "state"
-                )
-            )
-            for item in checks.values()
-        ]
-
-        scores = [
-            score
-            for score in scores
-            if score is not None
-        ]
-
-        if not scores:
+        if value is None:
             return None
 
+        pass_floor = CONTINUOUS_SCORING[
+            "pass_floor"
+        ]
+        watch_floor = CONTINUOUS_SCORING[
+            "watch_floor"
+        ]
+        review_floor = CONTINUOUS_SCORING[
+            "review_floor"
+        ]
+
+        if value <= good_max:
+            if good_max <= 0:
+                return 100.0
+
+            progress = cls._clamp(
+                value
+                / good_max,
+                0.0,
+                1.0
+            )
+
+            return round(
+                100.0
+                - (
+                    100.0
+                    - pass_floor
+                )
+                * progress,
+                1
+            )
+
+        transition = max(
+            review_min
+            - good_max,
+            0.001
+        )
+
+        if value < review_min:
+            progress = (
+                value
+                - good_max
+            ) / transition
+
+            return round(
+                pass_floor
+                - (
+                    pass_floor
+                    - watch_floor
+                )
+                * progress,
+                1
+            )
+
+        excess = (
+            value
+            - review_min
+        ) / transition
+
         return round(
-            mean(
-                scores
+            cls._clamp(
+                watch_floor
+                - (
+                    watch_floor
+                    - review_floor
+                )
+                * min(
+                    excess,
+                    1.0
+                ),
+                review_floor,
+                watch_floor
             ),
             1
         )
+
+    @classmethod
+    def _higher_score(
+        cls,
+        value,
+        pass_min,
+        review_below
+    ):
+        if value is None:
+            return None
+
+        pass_floor = CONTINUOUS_SCORING[
+            "pass_floor"
+        ]
+        watch_floor = CONTINUOUS_SCORING[
+            "watch_floor"
+        ]
+        review_floor = CONTINUOUS_SCORING[
+            "review_floor"
+        ]
+
+        transition = max(
+            pass_min
+            - review_below,
+            0.001
+        )
+
+        if value >= pass_min:
+            surplus = min(
+                (
+                    value
+                    - pass_min
+                )
+                / transition,
+                1.0
+            )
+
+            return round(
+                pass_floor
+                + (
+                    100.0
+                    - pass_floor
+                )
+                * surplus,
+                1
+            )
+
+        if value >= review_below:
+            progress = (
+                value
+                - review_below
+            ) / transition
+
+            return round(
+                watch_floor
+                + (
+                    pass_floor
+                    - watch_floor
+                )
+                * progress,
+                1
+            )
+
+        deficit = (
+            review_below
+            - value
+        ) / transition
+
+        return round(
+            cls._clamp(
+                watch_floor
+                - (
+                    watch_floor
+                    - review_floor
+                )
+                * min(
+                    deficit,
+                    1.0
+                ),
+                review_floor,
+                watch_floor
+            ),
+            1
+        )
+
+    @staticmethod
+    def _boolean_score(
+        value
+    ):
+        if value is None:
+            return None
+
+        return (
+            100.0
+            if bool(
+                value
+            )
+            else 60.0
+        )
+
+    @staticmethod
+    def _detail_grade(
+        score
+    ):
+        if score is None:
+            return "N/A"
+
+        for minimum, grade in DETAIL_GRADE_BANDS:
+            if score >= minimum:
+                return grade
+
+        return "E"
 
     @staticmethod
     def _detail_label(
@@ -133,10 +304,10 @@ class CompetitionDetailEvaluator:
         if score is None:
             return "INFO"
 
-        if score >= 92.0:
+        if score >= 90.0:
             return "EXCELLENT"
 
-        if score >= 82.0:
+        if score >= 80.0:
             return "STRONG"
 
         if score >= 70.0:
@@ -147,6 +318,7 @@ class CompetitionDetailEvaluator:
     @staticmethod
     def _item(
         state,
+        score=None,
         value=None,
         unit=None,
         lens=None,
@@ -154,6 +326,14 @@ class CompetitionDetailEvaluator:
     ):
         return {
             "state": state,
+            "score": (
+                round(
+                    score,
+                    1
+                )
+                if score is not None
+                else None
+            ),
             "value": (
                 round(
                     value,
@@ -169,6 +349,110 @@ class CompetitionDetailEvaluator:
             "lens": lens,
             "note": note,
         }
+
+    @staticmethod
+    def _weighted_score(
+        checks,
+        weights
+    ):
+        available = []
+
+        for key, weight in weights.items():
+            score = checks.get(
+                key,
+                {}
+            ).get(
+                "score"
+            )
+
+            if score is None:
+                continue
+
+            available.append(
+                (
+                    float(
+                        score
+                    ),
+                    float(
+                        weight
+                    )
+                )
+            )
+
+        if not available:
+            return (
+                None,
+                {}
+            )
+
+        total_weight = sum(
+            weight
+            for _,
+            weight in available
+        )
+
+        if total_weight <= 0:
+            return (
+                None,
+                {}
+            )
+
+        components = {}
+        weighted_total = 0.0
+
+        for key, weight in weights.items():
+            score = checks.get(
+                key,
+                {}
+            ).get(
+                "score"
+            )
+
+            if score is None:
+                continue
+
+            normalized_weight = (
+                float(
+                    weight
+                )
+                / total_weight
+            )
+
+            contribution = (
+                float(
+                    score
+                )
+                * normalized_weight
+            )
+
+            weighted_total += contribution
+
+            components[
+                key
+            ] = {
+                "score": round(
+                    float(
+                        score
+                    ),
+                    1
+                ),
+                "weight": round(
+                    normalized_weight,
+                    3
+                ),
+                "contribution": round(
+                    contribution,
+                    2
+                )
+            }
+
+        return (
+            round(
+                weighted_total,
+                1
+            ),
+            components
+        )
 
     def _front(
         self,
@@ -238,16 +522,31 @@ class CompetitionDetailEvaluator:
             right_inward
         )
 
+        knee_good = VISION_TOLERANCE[
+            "knee_in_good_max"
+        ]
+        knee_review = VISION_TOLERANCE[
+            "knee_in_bad_min"
+        ]
+
+        sync_good = VISION_TOLERANCE[
+            "ascent_progress_good_max"
+        ]
+        sync_review = VISION_TOLERANCE[
+            "ascent_progress_bad_min"
+        ]
+
         checks = {
             "knee_tracking": self._item(
                 self._lower_state(
                     max_inward,
-                    VISION_TOLERANCE[
-                        "knee_in_good_max"
-                    ],
-                    VISION_TOLERANCE[
-                        "knee_in_bad_min"
-                    ]
+                    knee_good,
+                    knee_review
+                ),
+                self._lower_score(
+                    max_inward,
+                    knee_good,
+                    knee_review
                 ),
                 max_inward,
                 "hip_width_ratio",
@@ -257,12 +556,13 @@ class CompetitionDetailEvaluator:
             "ascent_control": self._item(
                 self._lower_state(
                     sync,
-                    VISION_TOLERANCE[
-                        "ascent_progress_good_max"
-                    ],
-                    VISION_TOLERANCE[
-                        "ascent_progress_bad_min"
-                    ]
+                    sync_good,
+                    sync_review
+                ),
+                self._lower_score(
+                    sync,
+                    sync_good,
+                    sync_review
                 ),
                 sync,
                 "progress_delta",
@@ -271,6 +571,15 @@ class CompetitionDetailEvaluator:
             ),
             "shoulder_level": self._item(
                 self._lower_state(
+                    shoulder,
+                    DETAIL_TOLERANCE[
+                        "shoulder_tilt_good_max"
+                    ],
+                    DETAIL_TOLERANCE[
+                        "shoulder_tilt_review_min"
+                    ]
+                ),
+                self._lower_score(
                     shoulder,
                     DETAIL_TOLERANCE[
                         "shoulder_tilt_good_max"
@@ -294,6 +603,15 @@ class CompetitionDetailEvaluator:
                         "hip_tilt_review_min"
                     ]
                 ),
+                self._lower_score(
+                    hip_tilt,
+                    DETAIL_TOLERANCE[
+                        "hip_tilt_good_max"
+                    ],
+                    DETAIL_TOLERANCE[
+                        "hip_tilt_review_min"
+                    ]
+                ),
                 hip_tilt,
                 "hip_width_ratio",
                 "PHYSIQUE_CONTROL_LENS",
@@ -301,6 +619,15 @@ class CompetitionDetailEvaluator:
             ),
             "center_balance": self._item(
                 self._lower_state(
+                    center,
+                    DETAIL_TOLERANCE[
+                        "center_shift_good_max"
+                    ],
+                    DETAIL_TOLERANCE[
+                        "center_shift_review_min"
+                    ]
+                ),
+                self._lower_score(
                     center,
                     DETAIL_TOLERANCE[
                         "center_shift_good_max"
@@ -324,6 +651,15 @@ class CompetitionDetailEvaluator:
                         "head_shift_review_min"
                     ]
                 ),
+                self._lower_score(
+                    head,
+                    DETAIL_TOLERANCE[
+                        "head_shift_good_max"
+                    ],
+                    DETAIL_TOLERANCE[
+                        "head_shift_review_min"
+                    ]
+                ),
                 head,
                 "shoulder_width_ratio",
                 "PHYSIQUE_CONTROL_LENS",
@@ -331,6 +667,15 @@ class CompetitionDetailEvaluator:
             ),
             "knee_angle_symmetry": self._item(
                 self._lower_state(
+                    knee_asymmetry,
+                    DETAIL_TOLERANCE[
+                        "knee_angle_asym_good_max"
+                    ],
+                    DETAIL_TOLERANCE[
+                        "knee_angle_asym_review_min"
+                    ]
+                ),
+                self._lower_score(
                     knee_asymmetry,
                     DETAIL_TOLERANCE[
                         "knee_angle_asym_good_max"
@@ -354,6 +699,15 @@ class CompetitionDetailEvaluator:
                         "front_symmetry_review_min"
                     ]
                 ),
+                self._lower_score(
+                    knee_height_symmetry,
+                    DETAIL_TOLERANCE[
+                        "front_symmetry_good_max"
+                    ],
+                    DETAIL_TOLERANCE[
+                        "front_symmetry_review_min"
+                    ]
+                ),
                 knee_height_symmetry,
                 "hip_width_ratio",
                 "PHYSIQUE_CONTROL_LENS",
@@ -361,40 +715,44 @@ class CompetitionDetailEvaluator:
             ),
         }
 
-        physique_keys = (
-            "shoulder_level",
-            "hip_level",
-            "center_balance",
-            "head_control",
-            "knee_angle_symmetry",
-            "knee_height_symmetry",
+        detail_score, weighted_components = (
+            self._weighted_score(
+                checks,
+                DETAIL_WEIGHTS[
+                    "FRONT_COACH"
+                ]
+            )
         )
 
-        physique_checks = {
-            key: checks[
-                key
-            ]
-            for key in physique_keys
-        }
-
-        detail_score = self._score_states(
-            checks
+        physique_score, physique_components = (
+            self._weighted_score(
+                checks,
+                DETAIL_WEIGHTS[
+                    "PHYSIQUE_CONTROL_FRONT"
+                ]
+            )
         )
 
         return {
             "checks": checks,
             "detail_score": detail_score,
+            "detail_grade": self._detail_grade(
+                detail_score
+            ),
             "detail_label": self._detail_label(
                 detail_score
             ),
+            "weighted_components": weighted_components,
             "angle_metrics": {
                 "knee_angle_asymmetry_deg": knee_asymmetry,
             },
             "competition_lenses": {
                 "physique_control": {
-                    "score": self._score_states(
-                        physique_checks
+                    "score": physique_score,
+                    "grade": self._detail_grade(
+                        physique_score
                     ),
+                    "components": physique_components,
                     "basis": [
                         "symmetry",
                         "balance",
@@ -470,9 +828,33 @@ class CompetitionDetailEvaluator:
             )
         )
 
+        sync_good = VISION_TOLERANCE[
+            "ascent_progress_good_max"
+        ]
+        sync_review = VISION_TOLERANCE[
+            "ascent_progress_bad_min"
+        ]
+
+        lockout_good = DETAIL_TOLERANCE[
+            "side_lockout_good_min"
+        ]
+        lockout_review = DETAIL_TOLERANCE[
+            "side_lockout_review_below"
+        ]
+
+        head_good = DETAIL_TOLERANCE[
+            "side_head_forward_good_max"
+        ]
+        head_review = DETAIL_TOLERANCE[
+            "side_head_forward_review_min"
+        ]
+
         checks = {
             "general_depth": self._item(
                 self._boolean_state(
+                    depth_general
+                ),
+                self._boolean_score(
                     depth_general
                 ),
                 depth_margin,
@@ -483,12 +865,13 @@ class CompetitionDetailEvaluator:
             "ascent_control": self._item(
                 self._lower_state(
                     sync,
-                    VISION_TOLERANCE[
-                        "ascent_progress_good_max"
-                    ],
-                    VISION_TOLERANCE[
-                        "ascent_progress_bad_min"
-                    ]
+                    sync_good,
+                    sync_review
+                ),
+                self._lower_score(
+                    sync,
+                    sync_good,
+                    sync_review
                 ),
                 sync,
                 "progress_delta",
@@ -498,12 +881,13 @@ class CompetitionDetailEvaluator:
             "head_control": self._item(
                 self._lower_state(
                     head,
-                    DETAIL_TOLERANCE[
-                        "side_head_forward_good_max"
-                    ],
-                    DETAIL_TOLERANCE[
-                        "side_head_forward_review_min"
-                    ]
+                    head_good,
+                    head_review
+                ),
+                self._lower_score(
+                    head,
+                    head_good,
+                    head_review
                 ),
                 head,
                 "torso_length_ratio",
@@ -513,12 +897,13 @@ class CompetitionDetailEvaluator:
             "lockout_proxy": self._item(
                 self._higher_state(
                     lockout,
-                    DETAIL_TOLERANCE[
-                        "side_lockout_good_min"
-                    ],
-                    DETAIL_TOLERANCE[
-                        "side_lockout_review_below"
-                    ]
+                    lockout_good,
+                    lockout_review
+                ),
+                self._higher_score(
+                    lockout,
+                    lockout_good,
+                    lockout_review
                 ),
                 lockout,
                 "deg",
@@ -532,6 +917,9 @@ class CompetitionDetailEvaluator:
                 self._boolean_state(
                     ipf_depth
                 ),
+                self._boolean_score(
+                    ipf_depth
+                ),
                 depth_margin,
                 "thigh_length_ratio",
                 "IPF_SQUAT_PROXY",
@@ -542,6 +930,7 @@ class CompetitionDetailEvaluator:
             ),
             "knee_flexion_angle": self._item(
                 "INFO",
+                None,
                 knee_angle,
                 "deg",
                 "ANGLE_DIAGNOSTIC",
@@ -549,6 +938,7 @@ class CompetitionDetailEvaluator:
             ),
             "hip_flexion_angle": self._item(
                 "INFO",
+                None,
                 hip_angle,
                 "deg",
                 "ANGLE_DIAGNOSTIC",
@@ -556,6 +946,7 @@ class CompetitionDetailEvaluator:
             ),
             "trunk_lean_angle": self._item(
                 "INFO",
+                None,
                 trunk,
                 "deg",
                 "ANGLE_DIAGNOSTIC",
@@ -566,6 +957,7 @@ class CompetitionDetailEvaluator:
             ),
             "shin_angle": self._item(
                 "INFO",
+                None,
                 shin,
                 "deg",
                 "ANGLE_DIAGNOSTIC",
@@ -573,43 +965,43 @@ class CompetitionDetailEvaluator:
             ),
         }
 
-        general_keys = (
-            "general_depth",
-            "ascent_control",
-            "head_control",
-            "lockout_proxy",
+        detail_score, weighted_components = (
+            self._weighted_score(
+                checks,
+                DETAIL_WEIGHTS[
+                    "SIDE_COACH"
+                ]
+            )
         )
 
-        detail_checks = {
-            key: checks[
-                key
-            ]
-            for key in general_keys
-        }
-
-        ipf_keys = (
-            "ipf_depth_proxy",
-            "lockout_proxy",
-            "ascent_control",
+        ipf_score, ipf_components = (
+            self._weighted_score(
+                checks,
+                DETAIL_WEIGHTS[
+                    "IPF_SQUAT_PROXY"
+                ]
+            )
         )
 
-        ipf_checks = {
-            key: checks[
-                key
-            ]
-            for key in ipf_keys
-        }
-
-        detail_score = self._score_states(
-            detail_checks
+        physique_score, physique_components = (
+            self._weighted_score(
+                checks,
+                {
+                    "head_control": 1.0
+                }
+            )
         )
 
         return {
             "checks": checks,
             "detail_score": detail_score,
+            "detail_grade": self._detail_grade(
+                detail_score
+            ),
             "detail_label": self._detail_label(
                 detail_score
             ),
+            "weighted_components": weighted_components,
             "angle_metrics": {
                 "min_knee_angle_deg": knee_angle,
                 "min_hip_angle_deg": hip_angle,
@@ -618,26 +1010,20 @@ class CompetitionDetailEvaluator:
             },
             "competition_lenses": {
                 "ipf_squat_proxy": {
-                    "score": self._score_states(
-                        ipf_checks
+                    "score": ipf_score,
+                    "grade": self._detail_grade(
+                        ipf_score
                     ),
-                    "checks": {
-                        key: checks[
-                            key
-                        ][
-                            "state"
-                        ]
-                        for key in ipf_keys
-                    },
+                    "components": ipf_components,
                     "partial_proxy": True,
                     "official_referee_decision": False,
                 },
                 "physique_control": {
-                    "score": self._score_states({
-                        "head_control": checks[
-                            "head_control"
-                        ],
-                    }),
+                    "score": physique_score,
+                    "grade": self._detail_grade(
+                        physique_score
+                    ),
+                    "components": physique_components,
                     "basis": [
                         "presentation_control",
                     ],
@@ -667,7 +1053,9 @@ class CompetitionDetailEvaluator:
             result = {
                 "checks": {},
                 "detail_score": None,
+                "detail_grade": "N/A",
                 "detail_label": "INFO",
+                "weighted_components": {},
                 "angle_metrics": {},
                 "competition_lenses": {},
             }
