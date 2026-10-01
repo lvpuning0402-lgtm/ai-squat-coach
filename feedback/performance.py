@@ -1,5 +1,5 @@
 from collections import Counter
-from statistics import mean
+from statistics import mean, pstdev
 
 
 class SessionPerformanceAnalyzer:
@@ -10,8 +10,9 @@ class SessionPerformanceAnalyzer:
     目标：
     - 统一 FRONT / SIDE 每次动作数据
     - 生成单次 Rep 质量指标
+    - 标记明显的跟踪/状态机异常 Rep
     - 生成 Set Summary
-    - 观察动作质量和节奏是否随次数下降
+    - 观察动作质量、节奏与 ROM 一致性
     """
 
     def __init__(self):
@@ -32,6 +33,196 @@ class SessionPerformanceAnalyzer:
         if value is None:
             return default
         return float(value)
+
+    @staticmethod
+    def _coefficient_of_variation(
+        values
+    ):
+        cleaned = [
+            float(value)
+            for value in values
+            if (
+                value is not None
+                and float(value) > 0
+            )
+        ]
+
+        if len(cleaned) < 3:
+            return None
+
+        average = mean(
+            cleaned
+        )
+
+        if average <= 0:
+            return None
+
+        return (
+            pstdev(
+                cleaned
+            )
+            / average
+            * 100.0
+        )
+
+    @staticmethod
+    def _consistency_label(
+        values
+    ):
+        available = [
+            value
+            for value in values
+            if value is not None
+        ]
+
+        if not available:
+            return "COLLECTING"
+
+        worst_cv = max(
+            available
+        )
+
+        if worst_cv <= 10.0:
+            return "CONSISTENT"
+
+        if worst_cv <= 20.0:
+            return "MODERATE"
+
+        return "VARIABLE"
+
+    def assess_rep_confidence(
+        self,
+        rep_data
+    ):
+        """
+        区分动作质量问题与明显的数据异常。
+
+        只过滤极端异常，不把一般的坏动作当作无效数据。
+        """
+        reasons = []
+
+        view = rep_data.get(
+            "view",
+            "UNKNOWN"
+        )
+
+        total_time = self._safe(
+            rep_data.get(
+                "total_time"
+            ),
+            0.0
+        )
+
+        if (
+            total_time <= 0.35
+            or total_time > 12.0
+        ):
+            reasons.append(
+                "TEMPO_OUTLIER"
+            )
+
+        for key in (
+            "descent_time",
+            "bottom_time",
+            "ascent_time"
+        ):
+            value = rep_data.get(
+                key
+            )
+
+            if value is None:
+                continue
+
+            value = self._safe(
+                value,
+                0.0
+            )
+
+            if (
+                value < 0
+                or value > 8.0
+            ):
+                if (
+                    "TEMPO_OUTLIER"
+                    not in reasons
+                ):
+                    reasons.append(
+                        "TEMPO_OUTLIER"
+                    )
+
+        if view == "FRONT":
+            left_inward = self._safe(
+                rep_data.get(
+                    "max_left_inward"
+                ),
+                0.0
+            )
+            right_inward = self._safe(
+                rep_data.get(
+                    "max_right_inward"
+                ),
+                0.0
+            )
+            center = self._safe(
+                rep_data.get(
+                    "max_center_shift"
+                ),
+                0.0
+            )
+            sync = self._safe(
+                rep_data.get(
+                    "max_sync_error"
+                ),
+                0.0
+            )
+
+            if (
+                max(
+                    left_inward,
+                    right_inward
+                ) > 1.0
+                or center > 1.25
+                or sync > 0.80
+            ):
+                reasons.append(
+                    "TRACKING_OUTLIER"
+                )
+
+        elif view == "SIDE":
+            trunk = self._safe(
+                rep_data.get(
+                    "max_trunk_lean"
+                ),
+                0.0
+            )
+            head = self._safe(
+                rep_data.get(
+                    "max_head_forward"
+                ),
+                0.0
+            )
+            sync = self._safe(
+                rep_data.get(
+                    "max_sync_error"
+                ),
+                0.0
+            )
+
+            if (
+                trunk > 80.0
+                or head > 2.0
+                or sync > 1.5
+            ):
+                reasons.append(
+                    "TRACKING_OUTLIER"
+                )
+
+        return (
+            len(
+                reasons
+            ) == 0,
+            reasons
+        )
 
     def score_front_knee_tracking(
         self,
@@ -108,8 +299,7 @@ class SessionPerformanceAnalyzer:
             0.0
         )
 
-        # 当前测试阈值来自实际摄像头校准：
-        # <0.35 稳定，>0.60 明显偏侧。
+        # 正常不对称约 0.25，明显偏侧约 1.09。
         if symmetry <= 0.35:
             score = 100.0
         elif symmetry <= 0.60:
@@ -397,6 +587,13 @@ class SessionPerformanceAnalyzer:
             0.0
         )
 
+        (
+            analysis_valid,
+            confidence_reasons
+        ) = self.assess_rep_confidence(
+            rep_data
+        )
+
         analyzed = {
             **rep_data,
             "quality_score": round(
@@ -408,7 +605,9 @@ class SessionPerformanceAnalyzer:
             ),
             "component_scores": component_scores,
             "issues": issues,
-            "tempo_total": total_time
+            "tempo_total": total_time,
+            "analysis_valid": analysis_valid,
+            "confidence_reasons": confidence_reasons
         }
 
         self.reps.append(
@@ -431,39 +630,109 @@ class SessionPerformanceAnalyzer:
         if not self.reps:
             return {
                 "reps": 0,
+                "valid_reps": 0,
+                "excluded_reps": 0,
                 "average_score": 0.0,
                 "best_rep": None,
                 "tempo_change": 0.0,
                 "quality_change": 0.0,
+                "tempo_cv": None,
+                "front_rom_cv": None,
+                "side_rom_cv": None,
+                "consistency_label": "NO DATA",
                 "trend": "NO DATA",
+                "top_issue": "NONE"
+            }
+
+        valid_reps = [
+            rep
+            for rep in self.reps
+            if rep.get(
+                "analysis_valid",
+                True
+            )
+        ]
+
+        if not valid_reps:
+            return {
+                "reps": len(
+                    self.reps
+                ),
+                "valid_reps": 0,
+                "excluded_reps": len(
+                    self.reps
+                ),
+                "average_score": 0.0,
+                "best_rep": None,
+                "tempo_change": 0.0,
+                "quality_change": 0.0,
+                "tempo_cv": None,
+                "front_rom_cv": None,
+                "side_rom_cv": None,
+                "consistency_label": "NO VALID DATA",
+                "trend": "NO VALID DATA",
                 "top_issue": "NONE"
             }
 
         scores = [
             rep["quality_score"]
-            for rep in self.reps
+            for rep in valid_reps
         ]
 
         valid_tempos = [
             rep["tempo_total"]
-            for rep in self.reps
+            for rep in valid_reps
             if rep.get(
                 "tempo_total",
                 0.0
             ) > 0
         ]
 
+        front_roms = [
+            rep.get(
+                "rom"
+            )
+            for rep in valid_reps
+            if (
+                rep.get(
+                    "view"
+                ) == "FRONT"
+                and rep.get(
+                    "rom"
+                ) is not None
+                and rep.get(
+                    "rom"
+                ) > 0
+            )
+        ]
+
+        side_roms = [
+            rep.get(
+                "rom_degrees"
+            )
+            for rep in valid_reps
+            if (
+                rep.get(
+                    "view"
+                ) == "SIDE"
+                and rep.get(
+                    "rom_degrees"
+                ) is not None
+                and rep.get(
+                    "rom_degrees"
+                ) > 0
+            )
+        ]
+
         average_score = mean(
             scores
         )
 
-        best_index = max(
-            range(
-                len(
-                    scores
-                )
-            ),
-            key=scores.__getitem__
+        best_rep = max(
+            valid_reps,
+            key=lambda rep: rep[
+                "quality_score"
+            ]
         )
 
         quality_change = 0.0
@@ -510,6 +779,22 @@ class SessionPerformanceAnalyzer:
                     * 100.0
                 )
 
+        tempo_cv = self._coefficient_of_variation(
+            valid_tempos
+        )
+        front_rom_cv = self._coefficient_of_variation(
+            front_roms
+        )
+        side_rom_cv = self._coefficient_of_variation(
+            side_roms
+        )
+
+        consistency_label = self._consistency_label([
+            tempo_cv,
+            front_rom_cv,
+            side_rom_cv
+        ])
+
         if len(scores) < 4:
             trend = "COLLECTING"
         elif quality_change <= -10:
@@ -521,7 +806,7 @@ class SessionPerformanceAnalyzer:
 
         issue_counter = Counter()
 
-        for rep in self.reps:
+        for rep in valid_reps:
             issue_counter.update(
                 rep.get(
                     "issues",
@@ -540,13 +825,22 @@ class SessionPerformanceAnalyzer:
             "reps": len(
                 self.reps
             ),
+            "valid_reps": len(
+                valid_reps
+            ),
+            "excluded_reps": (
+                len(
+                    self.reps
+                )
+                - len(
+                    valid_reps
+                )
+            ),
             "average_score": round(
                 average_score,
                 1
             ),
-            "best_rep": self.reps[
-                best_index
-            ].get(
+            "best_rep": best_rep.get(
                 "rep"
             ),
             "tempo_change": round(
@@ -557,6 +851,31 @@ class SessionPerformanceAnalyzer:
                 quality_change,
                 1
             ),
+            "tempo_cv": (
+                round(
+                    tempo_cv,
+                    1
+                )
+                if tempo_cv is not None
+                else None
+            ),
+            "front_rom_cv": (
+                round(
+                    front_rom_cv,
+                    1
+                )
+                if front_rom_cv is not None
+                else None
+            ),
+            "side_rom_cv": (
+                round(
+                    side_rom_cv,
+                    1
+                )
+                if side_rom_cv is not None
+                else None
+            ),
+            "consistency_label": consistency_label,
             "trend": trend,
             "top_issue": top_issue
         }
