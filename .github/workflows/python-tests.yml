@@ -1,5 +1,8 @@
 name: Python tests
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -28,6 +31,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Compile Python sources
+        run: |
+          python -m compileall camera exercises feedback reports standards tests
 
       - name: Run unit tests
         env:
