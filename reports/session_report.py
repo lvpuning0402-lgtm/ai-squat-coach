@@ -217,7 +217,7 @@ class SessionReportExporter:
         }
 
         return {
-            "report_version": 2,
+            "report_version": 3,
             "session_id": session_id,
             "session_type": session_type,
             "report_context": report_context,
@@ -292,6 +292,10 @@ class SessionReportExporter:
             "detail_label",
             "detail_coverage",
             "detail_confidence",
+            "pose_quality",
+            "view_quality",
+            "phase_capture",
+            "confidence_reasons_detail",
             "detail_warnings",
             "competition_flags",
             "physique_control_score",
@@ -416,6 +420,10 @@ class SessionReportExporter:
                             "detail_coverage"
                         )
                     ),
+                    "pose_quality": rep.get("confidence_breakdown", {}).get("pose_quality", "UNKNOWN"),
+                    "view_quality": rep.get("confidence_breakdown", {}).get("view_quality", "UNKNOWN"),
+                    "phase_capture": rep.get("confidence_breakdown", {}).get("phase_capture", "UNKNOWN"),
+                    "confidence_reasons_detail": "|".join(rep.get("confidence_breakdown", {}).get("reasons", [])),
                     "detail_confidence": rep.get(
                         "detail_confidence"
                     ),

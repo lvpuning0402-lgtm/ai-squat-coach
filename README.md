@@ -89,3 +89,39 @@ Test-session history:
     python history.py --mode TEST --min-reps 1
 
 Training feedback is not a medical diagnosis.
+
+## 校准版更新：证据质量（2026-10-02）
+
+当前是 Squat v1.0 校准版，尚未完成跨人群准确度验证。
+自动测试通过只代表已覆盖的程序行为通过，不代表真人评分已经准确。
+
+这次更新：
+
+- 每个 Rep 保存 `capture_quality`：关键点可见率、视角稳定率、采集帧数。
+- `confidence_breakdown` 分开报告 pose / view / phase / coverage；次数多不会自动把低质量采集变成 HIGH。
+- 最低点只有 1 帧时，保留诊断分数，但阶段显示 `-- [LOW]`；MEDIUM 显示近似整数。
+- 三阶段比较只用三阶段均有可用证据的同一批 Rep；报告给出纳入/排除数量。
+- LOW 动作不参与 Best Detail；教练优先提示检查采集，不做确定的技术纠正。
+- JSON 报告版本升到 3；CSV 增加证据质量字段。旧报告缺少采集数据时显示 UNKNOWN，不补造证据。
+- `next_set_goal` 给出一个重点、动作提示和复查标准。当前建议仍是确定性规则生成。
+
+### 你需要做的最小跑测
+
+在项目文件夹的 VS Code 终端执行：
+
+```powershell
+git pull --ff-only origin main
+python -m unittest discover -s tests
+python -m camera.camera
+```
+
+保持 TEST 模式。正常、舒适地做正面 3 次，按 Q 结束并截图总结；重新运行，
+侧面做 3 次再按 Q。不要刻意膝内扣、强行蹲深或停在最低点来追分。
+如有疼痛就停止真人测试；可以先只运行自动测试。
+
+把这两组新生成的 `reports/session_*.json` 和总结截图发回。
+记录你实际做了几次、屏幕计了几次即可。若出现 LOW，不用反复加做，
+先发报告排查姿态可见度、视角和阶段采样。
+
+若 `git pull --ff-only` 提示本地改动或分支分叉，保留原文件并发终端信息；
+不要用 `reset --hard` 覆盖本地训练数据或代码。

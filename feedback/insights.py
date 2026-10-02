@@ -1,3 +1,4 @@
+from feedback.capture_quality import weakest_confidence
 from collections import Counter
 
 
@@ -662,6 +663,7 @@ class SessionInsightBuilder:
         if (
             phase_focus
             and phase_focus in self.PHASE_CUE_ZH
+            and main_issue == "NONE"
         ):
             next_action += (
                 " "
@@ -699,6 +701,21 @@ class SessionInsightBuilder:
             confidence = "MEDIUM"
         else:
             confidence = "LOW"
+
+        evidence_confidence = weakest_confidence([
+            rep.get("detail_confidence", "MEDIUM") for rep in valid_reps
+        ])
+        confidence = weakest_confidence([confidence, evidence_confidence])
+        # Repeating uncertain measurements does not create reliable evidence.
+        capture_limited = evidence_confidence == "LOW"
+        if capture_limited:
+            headline = "本组测量证据不足，先检查拍摄条件。"
+            strength = "已记录动作次数；动作质量结论需要复核。"
+            focus = "姿态可见度、视角或阶段采样不足，暂不据此判断技术问题。"
+            next_action = "下一组保持全身入镜、镜头固定，按自然节奏完成动作；无需故意做错或增加次数。"
+            selected_focus = "CAPTURE_QUALITY"
+            selected_label_ui = "Check capture quality"
+            phase_focus = phase_focus_score = phase_reason = top_deduction = None
 
         ui_lines = [
             (
@@ -759,8 +776,34 @@ class SessionInsightBuilder:
                 )
             )
 
+        if capture_limited:
+            ui_lines = [f"Recorded {total} reps", "Evidence: LOW",
+                        "Focus: capture / phase sampling", "Use natural movement; review capture"]
+        goal = {
+            "focus": selected_focus,
+            "cue": next_action,
+            "phase": phase_focus,
+            "evidence_confidence": evidence_confidence,
+            "affected_reps": issue_count if main_issue != "NONE" else detail_focus_count,
+            "evaluated_reps": total,
+            "success_criterion": (
+                "先获得完整三阶段和可用的姿态、视角证据，再比较动作质量。"
+                if capture_limited else
+                "相同视角和拍摄条件下，保持自然动作，观察该问题的出现比例是否下降。"
+                if selected_focus != "NONE" else
+                "保持当前自然动作，复查下一组结果是否一致。"
+            ),
+        }
+        if capture_limited:
+            goal["affected_reps"] = None
+        if phase_reason:
+            goal["phase_average_lost_points"] = phase_reason.get("average_lost_points")
+            goal["phase_metric"] = phase_reason.get("name")
+
         return {
             "headline": headline,
+            "next_set_goal": goal,
+            "evidence_confidence": evidence_confidence,
             "overview": overview,
             "strength": strength,
             "focus": focus,

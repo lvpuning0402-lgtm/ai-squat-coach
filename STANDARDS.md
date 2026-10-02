@@ -383,3 +383,40 @@ The front camera view does **not** certify squat depth. A front-view PASS means 
 - IFBB Professional League / NPC Worldwide competition rules, physique judging concepts including symmetry, balance, muscularity and presentation. The project uses only symmetry/balance/presentation-inspired movement-control concepts, not physique-placement scoring.
 
 Training feedback is not a medical diagnosis.
+
+## Capture evidence v1 — calibration build 2026-10-02
+
+These are unvalidated engineering quality gates, not movement standards or
+statistical confidence intervals. A HIGH label does not certify correct form.
+The movement score curves and core rep-counting thresholds are unchanged.
+
+- Capture telemetry spans the active rep only. Standing/waiting frames do not
+  increase evidence. Missing-body frames count against visibility and view.
+- FRONT requires nose, both shoulders, hips, knees and ankles; SIDE requires
+  nose and the currently selected shoulder/hip/knee/ankle chain, avoiding an
+  automatic penalty for the occluded far leg.
+- A usable frame requires each selected point to be finite, inside the image,
+  and have MediaPipe visibility >= 0.60. Visibility is a model signal, not a
+  calibrated probability of measurement accuracy.
+- Pose/view usable-frame ratios >= 95% give HIGH, >= 80% MEDIUM, otherwise LOW.
+  View quality measures agreement of the confirmed and raw view classifier,
+  not independently verified camera angle or camera roll.
+- A phase with fewer than two samples is LOW. Existing HIGH sample thresholds
+  remain two for bottom and four for descent/ascent, with >= 90% metric coverage.
+  These frame-count gates remain frame-rate-dependent and require calibration.
+- Rep confidence is bounded by pose, view, all three phases, and metric coverage.
+  Missing capture telemetry is UNKNOWN and caps confidence at MEDIUM; missing
+  phase evidence is LOW. No amount of repetition upgrades poor evidence.
+- Phase comparisons use the same eligible reps for all phases. LOW phases are
+  excluded from weakest-phase conclusions, while raw per-rep diagnostics remain.
+- Set diagnostic averages still include otherwise valid reps; they are not
+  certified progress scores. Best Detail excludes LOW confidence. Coach advice
+  switches to a capture check if any included rep has LOW detail confidence.
+- Report v3 stores the capture evidence and coaching goal; old saved reports are
+  not rewritten. Confidence does not silently change rep counts or hard-standard
+  PASS/REVIEW results.
+
+Remaining limitations: camera tilt/perspective correction, persistent keypoint
+bias, different body proportions, mixed-view score comparability and validated
+per-phase visibility are not solved by this quality gate. Next calibration work
+must inspect captured evidence and videos before changing movement thresholds.

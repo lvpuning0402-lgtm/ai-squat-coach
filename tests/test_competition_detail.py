@@ -216,7 +216,7 @@ class CompetitionDetailEvaluatorTests(unittest.TestCase):
             result[
                 "detail_confidence"
             ],
-            "HIGH"
+            "LOW"
         )
 
     def test_ipf_proxy_score_is_separate_from_general_coach_score(self):

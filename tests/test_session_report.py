@@ -128,7 +128,7 @@ class SessionReportExporterTests(unittest.TestCase):
                 report[
                     "report_version"
                 ],
-                2
+                3
             )
             self.assertIn(
                 "score_explanation",

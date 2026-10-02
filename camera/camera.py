@@ -10,6 +10,7 @@ from pose.view_detector import ViewDetector
 from exercises.front_squat import FrontSquatAnalyzer
 from exercises.side_squat import SideSquatAnalyzer
 
+from feedback.capture_quality import RepCaptureTracker
 from feedback.front_feedback import FrontFeedback
 from feedback.performance import SessionPerformanceAnalyzer
 from feedback.insights import SessionInsightBuilder
@@ -175,9 +176,15 @@ def format_phase_scores(
             value,
             dict
         ):
-            value = value.get(
-                "score"
-            )
+            confidence = value.get("confidence")
+            score = value.get("score")
+            if confidence == "LOW":
+                values.append("-- [LOW]")
+                continue
+            if confidence == "MEDIUM" and score is not None:
+                values.append(f"~{float(score):.0f}")
+                continue
+            value = score
 
         values.append(
             f"{float(value):.1f}"
@@ -560,6 +567,8 @@ def draw_panel(
 def _rep_detail_state(
     rep
 ):
+    if rep.get("detail_confidence") == "LOW":
+        return "UNSURE", "Check capture"
     warnings = rep.get(
         "detail_warnings",
         []
@@ -662,6 +671,11 @@ def _rep_timeline_line(
         if score is not None
         else "--"
     )
+
+    if rep.get("detail_confidence") == "LOW":
+        score_text = "-- [LOW]"
+    elif rep.get("detail_confidence") == "MEDIUM" and score is not None:
+        score_text = f"~{float(score):.0f}"
 
     issues = rep.get(
         "issues",
@@ -780,7 +794,7 @@ def build_session_summary_frame(
             f"({summary.get('standard_pass_rate', 0.0):.0f}%)"
         ),
         (
-            f"Detail score: "
+            f"Detail diagnostic: "
             f"{summary.get('average_detail_score', 0.0):.1f} "
             f"| coverage "
             f"{summary.get('average_detail_coverage', 0.0) * 100:.0f}%"
@@ -1231,7 +1245,8 @@ def draw_interface(
                 (
                     f"Detail: "
                     f"{last_completed_rep.get('detail_score', 0.0):.1f} "
-                    f"{last_completed_rep.get('detail_grade', 'N/A')}"
+                    f"{last_completed_rep.get('detail_grade', 'N/A')} "
+                    f"[{last_completed_rep.get('detail_confidence', 'LOW')}]"
                 )
             ]
 
@@ -1395,6 +1410,10 @@ def draw_interface(
                 f"{last_completed_rep.get('detail_grade', 'N/A')}  "
                 f"{last_completed_rep.get('detail_label', 'INFO')} "
                 f"[{last_completed_rep.get('detail_confidence', 'LOW')}]"
+            ),
+            "Evidence: " + " / ".join(
+                f"{key.split('_')[0]} {last_completed_rep.get('confidence_breakdown', {}).get(key, 'UNKNOWN')}"
+                for key in ("pose_quality", "view_quality", "phase_capture")
             ),
             (
                 (
@@ -1637,6 +1656,7 @@ def run_camera():
 
     last_view_state = None
     last_completed_rep = None
+    capture_tracker = RepCaptureTracker()
 
     user_requested_exit = False
     display_mode_index = 0
@@ -1764,6 +1784,12 @@ def run_camera():
                 right_ankle
             ])
 
+            capture_landmarks = {0: nose, 11: left_shoulder, 12: right_shoulder,
+                                 23: left_hip, 24: right_hip, 25: left_knee,
+                                 26: right_knee, 27: left_ankle, 28: right_ankle}
+            if not ready:
+                capture_tracker.observe("UNKNOWN", "UNKNOWN", capture_landmarks, active_leg)
+
             view = "UNKNOWN"
             raw_view = "UNKNOWN"
             view_ratio = 0.0
@@ -1813,6 +1839,7 @@ def run_camera():
                     effective_view = view
 
                 if effective_view != last_view_state:
+                    capture_tracker.reset()
                     if effective_view == "TRANSITION":
                         front_analyzer.reset()
                         front_feedback.reset()
@@ -1842,6 +1869,7 @@ def run_camera():
                     last_view_state = effective_view
 
                 view = effective_view
+                capture_tracker.observe(view, raw_view, capture_landmarks, active_leg)
 
                 session_diagnostics[
                     "last_view"
@@ -1882,6 +1910,7 @@ def run_camera():
                         right_ankle["point"]
                     )
 
+                    capture_tracker.on_result(front_result, view, raw_view, capture_landmarks)
                     if front_result is not None:
                         session_diagnostics[
                             "last_front_phase"
@@ -2419,6 +2448,7 @@ def run_camera():
                             "side_baseline_resets"
                         ] += 1
 
+                    capture_tracker.on_result(side_result, view, raw_view, capture_landmarks, active_leg)
                     if (
                         side_result["rep_completed"]
                         and side_result["rep_summary"]

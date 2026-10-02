@@ -1,3 +1,4 @@
+from feedback.capture_quality import assess_evidence, weakest_confidence
 from standards.competition_profiles import (
     COMPETITION_LENSES,
     CONTINUOUS_SCORING,
@@ -408,7 +409,7 @@ class CompetitionDetailEvaluator:
                 else "MEDIUM"
             )
 
-        if samples <= 0:
+        if samples < 2:
             return "LOW"
 
         high_sample_min = (
@@ -1237,7 +1238,11 @@ class CompetitionDetailEvaluator:
             ) is not None
         ]
 
-        if not available:
+        # A weakest phase requires comparable evidence from all three phases.
+        if len(available) != 3 or any(
+            data.get("confidence", "LOW") == "LOW"
+            for data in phase_scores.values()
+        ):
             return None
 
         phase, score = min(
@@ -1918,6 +1923,19 @@ class CompetitionDetailEvaluator:
                 "angle_metrics": {},
                 "competition_lenses": {},
             }
+
+        evidence = assess_evidence(rep, result)
+        result["confidence_breakdown"] = evidence
+        result["detail_confidence"] = evidence["overall"]
+        result["detail_provisional"] = evidence["overall"] != "HIGH"
+        # Capture reliability also bounds every phase, including coach aggregation.
+        capture_cap = weakest_confidence([
+            "MEDIUM" if evidence[key] == "UNKNOWN" else evidence[key]
+            for key in ("pose_quality", "view_quality")
+        ])
+        for phase in result["phase_scores"].values():
+            phase["confidence"] = weakest_confidence([phase["confidence"], capture_cap])
+        result["weakest_phase"] = self._weakest_phase(result["phase_scores"])
 
         warnings = [
             key

@@ -854,6 +854,8 @@ class SessionPerformanceAnalyzer:
                 "detail_confidence",
                 "LOW"
             ),
+            "confidence_breakdown": detail_result.get("confidence_breakdown", {}),
+            "detail_provisional": detail_result.get("detail_provisional", True),
             "detail_weighted_components": detail_result.get(
                 "weighted_components",
                 {}
@@ -1316,7 +1318,12 @@ class SessionPerformanceAnalyzer:
             "ascent": Counter(),
         }
 
-        for rep in valid_reps:
+        comparable_phase_reps = [rep for rep in valid_reps if all(
+            rep.get("phase_scores", {}).get(phase, {}).get("score") is not None
+            and rep.get("phase_scores", {}).get(phase, {}).get("confidence", "LOW") in ("MEDIUM", "HIGH")
+            for phase in ("descent", "bottom", "ascent")
+        )]
+        for rep in comparable_phase_reps:
             for phase, phase_data in rep.get(
                 "phase_scores",
                 {}
@@ -1427,7 +1434,7 @@ class SessionPerformanceAnalyzer:
             "ascent": {},
         }
 
-        for rep in valid_reps:
+        for rep in comparable_phase_reps:
             for phase, phase_data in rep.get(
                 "phase_scores",
                 {}
@@ -1750,6 +1757,7 @@ class SessionPerformanceAnalyzer:
             if rep.get(
                 "detail_score"
             ) is not None
+            and rep.get("detail_confidence", "LOW") in ("MEDIUM", "HIGH")
         ]
 
         best_detail_rep = (
@@ -1910,6 +1918,8 @@ class SessionPerformanceAnalyzer:
             ),
             "detail_component_averages": detail_component_averages,
             "top_detail_deductions": top_detail_deductions,
+            "phase_comparable_reps": len(comparable_phase_reps),
+            "phase_excluded_reps": len(valid_reps) - len(comparable_phase_reps),
             "phase_score_averages": phase_score_averages,
             "phase_coverage_averages": phase_coverage_averages,
             "phase_confidence_counts": phase_confidence_summary,
