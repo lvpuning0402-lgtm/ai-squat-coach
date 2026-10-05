@@ -81,7 +81,10 @@ def assess_evidence(rep, result):
     # Legacy reports have no capture telemetry: unknown is never promoted to HIGH.
     overall = weakest_confidence(["MEDIUM" if x == "UNKNOWN" else x
                                    for x in (pose, view, phase, metric)])
-    reasons = []
+    reasons = list(dict.fromkeys(
+        reason for data in phases.values()
+        for reason in data.get("confidence_reasons", [])
+    ))
     if pose == "UNKNOWN" or view == "UNKNOWN":
         reasons.append("CAPTURE_TELEMETRY_MISSING")
     if pose == "LOW":

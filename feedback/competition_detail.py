@@ -1067,6 +1067,15 @@ class CompetitionDetailEvaluator:
                 ),
             }
 
+            phase_reasons = []
+            if phase in ("descent", "ascent"):
+                # Range alone cannot distinguish smooth intentional motion from wobble.
+                checks["trunk_stability"] = self._item(
+                    "INFO", None, trunk_range, "deg_range", "ANGLE_DIAGNOSTIC",
+                    "Trunk angle range during motion; not evidence of instability."
+                )
+                phase_reasons.append("TRUNK_RANGE_DIAGNOSTIC_ONLY")
+
             if phase == "bottom":
                 depth_margin = self._safe(
                     metrics.get(
@@ -1096,6 +1105,26 @@ class CompetitionDetailEvaluator:
                     "GENERAL_STRENGTH",
                     "Depth reached in the bottom phase."
                 )
+
+                # Confirmation and smoothing can put the physical turnaround in
+                # DESCENDING. Never call that a shallow squat or copy its samples.
+                rep_depth = self._safe(rep.get("max_depth_margin"))
+                threshold = VISION_TOLERANCE["general_depth_margin_min"]
+                depth_conflict = (
+                    depth_margin is not None and rep_depth is not None
+                    and rep_depth >= threshold and depth_margin < threshold
+                )
+                if depth_margin is None or depth_conflict:
+                    checks["general_depth"] = self._item(
+                        "INFO", None, depth_margin, "thigh_length_ratio",
+                        "GENERAL_STRENGTH",
+                        "Bottom depth unavailable or inconsistent with rep peak; "
+                        "phase alignment requires review."
+                    )
+                    phase_reasons.append(
+                        "BOTTOM_DEPTH_PHASE_MISMATCH" if depth_conflict
+                        else "BOTTOM_DEPTH_MISSING"
+                    )
 
             if phase == "ascent":
                 ascent_sync = self._safe(
@@ -1191,6 +1220,7 @@ class CompetitionDetailEvaluator:
                     phase=phase
                 ),
                 "samples": samples,
+                "confidence_reasons": phase_reasons,
                 "angle_snapshot": {
                     "min_knee_angle_deg": self._safe(
                         metrics.get(
