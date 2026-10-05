@@ -295,6 +295,7 @@ class SessionReportExporter:
             "pose_quality",
             "view_quality",
             "phase_capture",
+            "phase_assessment",
             "confidence_reasons_detail",
             "detail_warnings",
             "competition_flags",
@@ -423,6 +424,7 @@ class SessionReportExporter:
                     "pose_quality": rep.get("confidence_breakdown", {}).get("pose_quality", "UNKNOWN"),
                     "view_quality": rep.get("confidence_breakdown", {}).get("view_quality", "UNKNOWN"),
                     "phase_capture": rep.get("confidence_breakdown", {}).get("phase_capture", "UNKNOWN"),
+                    "phase_assessment": rep.get("confidence_breakdown", {}).get("phase_assessment", "UNKNOWN"),
                     "confidence_reasons_detail": "|".join(rep.get("confidence_breakdown", {}).get("reasons", [])),
                     "detail_confidence": rep.get(
                         "detail_confidence"

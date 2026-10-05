@@ -1,4 +1,4 @@
-from feedback.capture_quality import weakest_confidence
+from feedback.capture_quality import weakest_confidence, assessment_limited
 from collections import Counter
 
 
@@ -708,6 +708,10 @@ class SessionInsightBuilder:
         confidence = weakest_confidence([confidence, evidence_confidence])
         # Repeating uncertain measurements does not create reliable evidence.
         capture_limited = evidence_confidence == "LOW"
+        model_limited = capture_limited and all(
+            assessment_limited(rep) for rep in valid_reps
+            if rep.get("detail_confidence") == "LOW"
+        )
         if capture_limited:
             headline = "本组测量证据不足，先检查拍摄条件。"
             strength = "已记录动作次数；动作质量结论需要复核。"
@@ -716,6 +720,13 @@ class SessionInsightBuilder:
             selected_focus = "CAPTURE_QUALITY"
             selected_label_ui = "Check capture quality"
             phase_focus = phase_focus_score = phase_reason = top_deduction = None
+
+        if model_limited:
+            headline = "本组采集可用，阶段评分指标尚不完整。"
+            focus = "姿态、视角和阶段采样可用；当前阶段评分模型覆盖不足，暂不作完整技术评价。"
+            next_action = "保留本次报告供校准，无需为此调整镜头或重复动作；等待评分模型完善。"
+            selected_focus = "ASSESSMENT_LIMITED"
+            selected_label_ui = "Assessment limited"
 
         ui_lines = [
             (
@@ -779,6 +790,9 @@ class SessionInsightBuilder:
         if capture_limited:
             ui_lines = [f"Recorded {total} reps", "Evidence: LOW",
                         "Focus: capture / phase sampling", "Use natural movement; review capture"]
+        if model_limited:
+            ui_lines = [f"Recorded {total} reps", "Evidence: LOW",
+                        "Focus: assessment coverage", "Capture usable; no retest needed"]
         goal = {
             "focus": selected_focus,
             "cue": next_action,
@@ -796,6 +810,9 @@ class SessionInsightBuilder:
         }
         if capture_limited:
             goal["affected_reps"] = None
+        if model_limited:
+            goal["success_criterion"] = "完善阶段评分指标后，用已保存的逐帧数据复核。"
+
         if phase_reason:
             goal["phase_average_lost_points"] = phase_reason.get("average_lost_points")
             goal["phase_metric"] = phase_reason.get("name")

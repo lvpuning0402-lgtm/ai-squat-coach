@@ -91,9 +91,30 @@ def assess_evidence(rep, result):
         reasons.append("POSE_VISIBILITY_LOW")
     if view == "LOW":
         reasons.append("VIEW_UNSTABLE")
-    if phase != "HIGH":
-        reasons.append("PHASE_CAPTURE_INCOMPLETE" if phase == "LOW" else "PHASE_CAPTURE_LIMITED")
+    sampling = weakest_confidence([
+        "LOW" if phases.get(p, {}).get("samples", 0) < 2 else
+        "HIGH" if phases[p]["samples"] >= (2 if p == "bottom" else 4) else "MEDIUM"
+        for p in PHASES
+    ])
+    if sampling != "HIGH":
+        reasons.append("PHASE_CAPTURE_INCOMPLETE" if sampling == "LOW" else "PHASE_CAPTURE_LIMITED")
+    if any(data.get("coverage", 0) < .7 for data in phases.values()):
+        reasons.append("PHASE_METRIC_COVERAGE_LIMITED")
     if metric != "HIGH":
         reasons.append("METRIC_COVERAGE_LIMITED")
-    return {"pose_quality": pose, "view_quality": view, "phase_capture": phase,
+    return {"pose_quality": pose, "view_quality": view, "phase_capture": sampling, "phase_assessment": phase,
             "metric_coverage": metric, "overall": overall, "reasons": reasons}
+
+
+def assessment_limited(rep):
+    """Only attribute LOW to the model when capture and timing are evidenced."""
+    evidence = rep.get("confidence_breakdown", {})
+    reasons = set(evidence.get("reasons", []))
+    allowed = {"TRUNK_RANGE_DIAGNOSTIC_ONLY", "PHASE_ALIGNMENT_HEURISTIC",
+               "PHASE_METRIC_COVERAGE_LIMITED"}
+    return (rep.get("detail_confidence") == "LOW"
+            and all(evidence.get(key) == "HIGH"
+                    for key in ("pose_quality", "view_quality", "phase_capture"))
+            and rep.get("phase_alignment", {}).get("status") == "ALIGNED"
+            and "PHASE_METRIC_COVERAGE_LIMITED" in reasons
+            and reasons <= allowed)

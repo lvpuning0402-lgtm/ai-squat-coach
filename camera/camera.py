@@ -10,7 +10,7 @@ from pose.view_detector import ViewDetector
 from exercises.front_squat import FrontSquatAnalyzer
 from exercises.side_squat import SideSquatAnalyzer
 
-from feedback.capture_quality import RepCaptureTracker
+from feedback.capture_quality import RepCaptureTracker, assessment_limited
 from feedback.front_feedback import FrontFeedback
 from feedback.performance import SessionPerformanceAnalyzer
 from feedback.insights import SessionInsightBuilder
@@ -568,7 +568,7 @@ def _rep_detail_state(
     rep
 ):
     if rep.get("detail_confidence") == "LOW":
-        return "UNSURE", "Check capture"
+        return "UNSURE", "Assessment limited" if assessment_limited(rep) else "Check capture"
     warnings = rep.get(
         "detail_warnings",
         []

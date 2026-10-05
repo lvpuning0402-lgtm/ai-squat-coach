@@ -123,3 +123,33 @@ class CaptureEvidenceTests(unittest.TestCase):
             "ascent": {"score": 83.6, "confidence": "MEDIUM"}}),
             "91.3 / -- [LOW] / ~84")
         self.assertEqual(_rep_detail_state({"detail_confidence": "LOW"})[0], "UNSURE")
+
+class AssessmentLimitationTests(unittest.TestCase):
+    def rep(self):
+        return {"rep": 1, "view": "SIDE", "analysis_valid": True,
+                "set_valid": True, "standard_met": True, "detail_confidence": "LOW",
+                "phase_alignment": {"status": "ALIGNED"},
+                "confidence_breakdown": {
+                    "pose_quality": "HIGH", "view_quality": "HIGH",
+                    "phase_capture": "HIGH", "phase_assessment": "LOW",
+                    "reasons": ["TRUNK_RANGE_DIAGNOSTIC_ONLY", "PHASE_ALIGNMENT_HEURISTIC",
+                                "PHASE_METRIC_COVERAGE_LIMITED"]}}
+
+    def test_good_capture_with_limited_model_does_not_request_retest(self):
+        rep = self.rep()
+        coach = SessionInsightBuilder().build([rep]*3, {})
+        self.assertEqual(coach['selected_focus'], 'ASSESSMENT_LIMITED')
+        self.assertEqual(coach['confidence'], 'LOW')
+        self.assertIn('无需', coach['next_action'])
+        self.assertEqual(_rep_detail_state(rep), ('UNSURE', 'Assessment limited'))
+
+    def test_capture_or_alignment_fault_takes_priority_over_model_limit(self):
+        for field in ('pose_quality', 'view_quality', 'phase_capture'):
+            rep = self.rep()
+            rep['confidence_breakdown'][field] = 'LOW'
+            coach = SessionInsightBuilder().build([rep]*3, {})
+            self.assertEqual(coach['selected_focus'], 'CAPTURE_QUALITY')
+            self.assertEqual(_rep_detail_state(rep), ('UNSURE', 'Check capture'))
+        rep = self.rep()
+        rep['confidence_breakdown']['reasons'].append('BOTTOM_DEPTH_PHASE_MISMATCH')
+        self.assertEqual(_rep_detail_state(rep), ('UNSURE', 'Check capture'))
