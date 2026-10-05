@@ -1954,6 +1954,16 @@ class CompetitionDetailEvaluator:
                 "competition_lenses": {},
             }
 
+        alignment = rep.get("phase_alignment")
+        if alignment is not None:
+            cap = "MEDIUM" if alignment.get("status") == "ALIGNED" else "LOW"
+            for phase in result["phase_scores"].values():
+                phase["confidence"] = weakest_confidence([phase["confidence"], cap])
+                phase.setdefault("confidence_reasons", []).append(
+                    "PHASE_ALIGNMENT_HEURISTIC" if cap == "MEDIUM"
+                    else "PHASE_ALIGNMENT_UNAVAILABLE"
+                )
+
         evidence = assess_evidence(rep, result)
         result["confidence_breakdown"] = evidence
         result["detail_confidence"] = evidence["overall"]

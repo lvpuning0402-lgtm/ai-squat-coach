@@ -3,6 +3,7 @@ from statistics import median
 import math
 import time
 
+from exercises.phase_alignment import align_side_frames
 from pose.angles import calculate_angle
 from standards.squat_standard import (
     DETECTION,
@@ -94,6 +95,8 @@ class SideSquatAnalyzer:
         self.ascent_sync_buffer = deque(maxlen=5)
         self.current_max_depth_margin = -10.0
         self.phase_metrics = self._new_phase_metrics()
+        self.phase_trace = []
+        self.phase_trace_truncated = False
 
         self.last_rep = None
 
@@ -348,6 +351,8 @@ class SideSquatAnalyzer:
         self.ascent_sync_buffer.clear()
         self.current_max_depth_margin = -10.0
         self.phase_metrics = self._new_phase_metrics()
+        self.phase_trace = []
+        self.phase_trace_truncated = False
 
     def reanchor_baseline(
         self,
@@ -379,6 +384,34 @@ class SideSquatAnalyzer:
         self.baseline_shoulder_y = shoulder[1]
         self.baseline_hip_y = hip[1]
         self.baseline_torso_length = torso_length
+
+    def _append_phase_frame(self, frame):
+        if len(self.phase_trace) < 1800:
+            self.phase_trace.append(frame)
+        else:
+            self.phase_trace_truncated = True
+
+    def _aligned_phase_metrics(self):
+        groups, audit = align_side_frames(self.phase_trace, self.phase_trace_truncated)
+        if groups is None:
+            return audit
+        self.phase_metrics = self._new_phase_metrics()
+        anchor = groups["bottom"][-1]
+        sync_buffer = deque(maxlen=5)
+        for phase, frames in groups.items():
+            for frame in frames:
+                ascent_sync = None
+                if phase == "ascent":
+                    shoulder_progress = (anchor["shoulder"] - frame["shoulder"]) / max(abs(anchor["shoulder"]), .02)
+                    hip_progress = (anchor["hip"] - frame["hip"]) / max(abs(anchor["hip"]), .02)
+                    sync_buffer.append(abs(shoulder_progress - hip_progress))
+                    ascent_sync = median(sync_buffer)
+                self._record_phase_metrics(
+                    {"descent": "DESCENDING", "bottom": "BOTTOM", "ascent": "ASCENDING"}[phase],
+                    frame["knee_angle"], frame["hip_angle"], frame["trunk"],
+                    frame["shin"], frame["head"], frame["sync"], ascent_sync, frame["depth"]
+                )
+        return audit
 
     def complete_rep(self, now):
         descent_time = None
@@ -422,7 +455,14 @@ class SideSquatAnalyzer:
             - self.current_min_knee_angle
         )
 
+        phase_alignment = self._aligned_phase_metrics()
         self.last_rep = {
+            "phase_alignment": phase_alignment,
+            "phase_timing_basis": "LIVE_STATE_MACHINE",
+            "phase_trace": [
+                {**frame, "time": round(frame["time"] - self.phase_trace[0]["time"], 6)}
+                for frame in self.phase_trace
+            ],
             "rep": self.count,
             "view": "SIDE",
             "descent_time": descent_time,
@@ -978,6 +1018,12 @@ class SideSquatAnalyzer:
                 else None
             )
 
+            self._append_phase_frame({
+                "time": now, "knee_angle": knee_angle, "hip_angle": hip_angle,
+                "trunk": trunk_lean, "shin": shin_angle, "head": head_forward,
+                "sync": smooth_sync, "depth": depth_margin,
+                "shoulder": shoulder_descent, "hip": hip_descent,
+            })
             self._record_phase_metrics(
                 self.phase,
                 smooth_knee,
