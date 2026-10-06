@@ -191,6 +191,8 @@ class SessionReportExporter:
                 "average_detail_coverage",
                 0.0
             ),
+            "phase_observations_by_view": summary.get("phase_observations_by_view", {}),
+            "phase_observation_note": "Independent per-view phase observations; not weakest-phase ranking.",
             "phase_score_averages": summary.get(
                 "phase_score_averages",
                 {}

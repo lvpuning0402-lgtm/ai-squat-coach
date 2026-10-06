@@ -245,3 +245,15 @@ class SessionSummaryScreenTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class IndependentPhaseDisplayTests(unittest.TestCase):
+    def test_partial_observation_shows_approximation_and_counts(self):
+        from camera.camera import format_phase_observation_lines
+        summary = {'phase_observations_by_view': {'SIDE': {
+            'descent': {'score': None, 'confidence': 'LOW', 'evaluated_reps': 0},
+            'bottom': {'score': 94.5, 'confidence': 'MEDIUM', 'evaluated_reps': 3},
+            'ascent': {'score': 92.6, 'confidence': 'MEDIUM', 'evaluated_reps': 3}}}}
+        lines = format_phase_observation_lines(summary)
+        self.assertIn('~94 / ~93', lines[0])
+        self.assertIn('n=0/3/3', lines[0])
+        self.assertIn('observations', lines[1])

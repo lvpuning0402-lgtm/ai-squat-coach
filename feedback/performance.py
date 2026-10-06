@@ -6,6 +6,7 @@ from standards.squat_standard import (
     VISION_TOLERANCE,
 )
 from feedback.competition_detail import CompetitionDetailEvaluator
+from feedback.phase_observations import summarize_phase_observations
 
 
 class SessionPerformanceAnalyzer:
@@ -929,6 +930,7 @@ class SessionPerformanceAnalyzer:
                 "average_side_ipf_score": None,
                 "detail_component_averages": {},
                 "top_detail_deductions": [],
+                "phase_observations_by_view": {},
                 "phase_score_averages": {},
                 "phase_coverage_averages": {},
                 "phase_confidence_counts": {},
@@ -981,6 +983,7 @@ class SessionPerformanceAnalyzer:
                 "average_side_ipf_score": None,
                 "detail_component_averages": {},
                 "top_detail_deductions": [],
+                "phase_observations_by_view": {},
                 "phase_score_averages": {},
                 "phase_coverage_averages": {},
                 "phase_confidence_counts": {},
@@ -1918,6 +1921,7 @@ class SessionPerformanceAnalyzer:
             ),
             "detail_component_averages": detail_component_averages,
             "top_detail_deductions": top_detail_deductions,
+            "phase_observations_by_view": summarize_phase_observations(valid_reps),
             "phase_comparable_reps": len(comparable_phase_reps),
             "phase_excluded_reps": len(valid_reps) - len(comparable_phase_reps),
             "phase_score_averages": phase_score_averages,

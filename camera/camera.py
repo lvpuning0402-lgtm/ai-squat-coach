@@ -197,6 +197,23 @@ def format_phase_scores(
     )
 
 
+def format_phase_observation_lines(summary):
+    observations = summary.get("phase_observations_by_view")
+    if not observations:
+        # Legacy matched comparison summary (not independent observations).
+        return ["Phase D/B/A: " + format_phase_scores(summary.get("phase_score_averages", {}))]
+    lines = []
+    for view in ("FRONT", "SIDE"):
+        if view not in observations:
+            continue
+        phases = observations[view]
+        counts = "/".join(str(phases.get(p, {}).get("evaluated_reps", 0))
+                          for p in ("descent", "bottom", "ascent"))
+        lines.append(f"{view} D/B/A: " + format_phase_scores(phases) + f" [n={counts}]")
+    lines.append("Phase observations; compare only with matched evidence")
+    return lines
+
+
 def format_change(
     value,
     suffix=""
@@ -809,15 +826,7 @@ def build_session_summary_frame(
             f"WATCH {summary.get('detail_watch_events', 0)} / "
             f"REVIEW {summary.get('detail_review_events', 0)}"
         ),
-        (
-            "Phase D/B/A: "
-            + format_phase_scores(
-                summary.get(
-                    "phase_score_averages",
-                    {}
-                )
-            )
-        ),
+        *format_phase_observation_lines(summary),
         (
             "Top deduction: "
             + format_deduction(
@@ -1309,15 +1318,7 @@ def draw_interface(
                 f"{summary['valid_reps']} pass "
                 f"({summary['standard_pass_rate']:.0f}%)"
             ),
-            (
-                "Phase D/B/A: "
-                + format_phase_scores(
-                    summary.get(
-                        "phase_score_averages",
-                        {}
-                    )
-                )
-            ),
+            *format_phase_observation_lines(summary),
             (
                 "Top deduction: "
                 + format_deduction(
