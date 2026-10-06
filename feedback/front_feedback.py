@@ -141,8 +141,8 @@ class FrontFeedback:
 
         return sum(buffer) / len(buffer)
 
+    @staticmethod
     def calculate_metrics(
-        self,
         left_hip,
         right_hip,
         left_knee,
@@ -453,3 +453,19 @@ class FrontFeedback:
         self.last_rep_metrics = None
         self.previous_stage = "STANDING"
         self.reset_rep_metrics()
+
+
+def merge_front_rep_feedback(rep_summary, feedback_metrics):
+    """Merge whole-rep feedback without corrupting aligned phase membership."""
+    from copy import deepcopy
+    merged = deepcopy(rep_summary)
+    feedback = deepcopy(feedback_metrics or {})
+    live_phases = feedback.pop("phase_metrics", {})
+    merged.update(feedback)
+    if merged.get("phase_alignment", {}).get("status") != "ALIGNED":
+        for phase, values in live_phases.items():
+            target = merged.setdefault("phase_metrics", {}).setdefault(phase, {})
+            samples = max(target.get("samples", 0), values.get("samples", 0))
+            target.update({k: v for k, v in values.items() if k != "samples"})
+            target["samples"] = samples
+    return merged

@@ -7,14 +7,14 @@ import math
 from statistics import median
 
 
-def align_side_frames(frames, truncated=False):
-    audit = {'method': 'CENTERED_DEPTH_WINDOW_V1', 'status': 'UNAVAILABLE',
-             'depth_band': .05, 'frame_count': len(frames)}
+def _align_frames(frames, truncated, signal_key, band, method):
+    audit = {'method': method, 'status': 'UNAVAILABLE',
+             'depth_band': band, 'frame_count': len(frames)}
     if truncated or len(frames) < 5:
         audit['reason'] = 'TRACE_TRUNCATED' if truncated else 'TRACE_TOO_SHORT'
         return None, audit
     times = [f['time'] for f in frames]
-    depths = [f['depth'] for f in frames]
+    depths = [f[signal_key] for f in frames]
     if not all(math.isfinite(v) for v in times + depths):
         audit['reason'] = 'TRACE_NONFINITE'
         return None, audit
@@ -43,4 +43,16 @@ def align_side_frames(frames, truncated=False):
                  bottom_start_s=round(times[lo]-origin, 4),
                  bottom_end_s=round(times[hi]-origin, 4),
                  phase_samples={k: len(v) for k, v in groups.items()})
+    return groups, audit
+
+
+def align_side_frames(frames, truncated=False):
+    return _align_frames(frames, truncated, 'depth', .05, 'CENTERED_DEPTH_WINDOW_V1')
+
+
+def align_front_frames(frames, truncated=False):
+    groups, audit = _align_frames(frames, truncated, 'displacement', .02,
+                                  'CENTERED_FRONT_DISPLACEMENT_V1')
+    audit['displacement_band'] = audit.pop('depth_band')
+    audit['signal_unit'] = 'baseline_body_height_ratio'
     return groups, audit

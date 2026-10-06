@@ -11,7 +11,7 @@ from exercises.front_squat import FrontSquatAnalyzer
 from exercises.side_squat import SideSquatAnalyzer
 
 from feedback.capture_quality import RepCaptureTracker, assessment_limited
-from feedback.front_feedback import FrontFeedback
+from feedback.front_feedback import FrontFeedback, merge_front_rep_feedback
 from feedback.performance import SessionPerformanceAnalyzer
 from feedback.insights import SessionInsightBuilder
 
@@ -1965,65 +1965,8 @@ def run_camera():
                                 front_result["rep_summary"]
                             )
 
-                            front_rep_metrics = (
-                                front_form.get(
-                                    "rep_metrics"
-                                )
-                                or {}
-                            )
-
-                            feedback_phase_metrics = (
-                                front_rep_metrics.pop(
-                                    "phase_metrics",
-                                    {}
-                                )
-                            )
-
-                            rep_summary.update(
-                                front_rep_metrics
-                            )
-
-                            if feedback_phase_metrics:
-                                merged_phase_metrics = (
-                                    rep_summary.setdefault(
-                                        "phase_metrics",
-                                        {}
-                                    )
-                                )
-
-                                for (
-                                    phase_name,
-                                    phase_values
-                                ) in feedback_phase_metrics.items():
-                                    target_phase = (
-                                        merged_phase_metrics.setdefault(
-                                            phase_name,
-                                            {}
-                                        )
-                                    )
-
-                                    analyzer_samples = target_phase.get(
-                                        "samples",
-                                        0
-                                    )
-                                    feedback_samples = phase_values.get(
-                                        "samples",
-                                        0
-                                    )
-
-                                    target_phase.update({
-                                        key: value
-                                        for key, value
-                                        in phase_values.items()
-                                        if key != "samples"
-                                    })
-
-                                    target_phase[
-                                        "samples"
-                                    ] = max(
-                                        analyzer_samples,
-                                        feedback_samples
-                                    )
+                            rep_summary = merge_front_rep_feedback(
+                                rep_summary, front_form.get("rep_metrics"))
 
                             rep_summary[
                                 "left_inward"

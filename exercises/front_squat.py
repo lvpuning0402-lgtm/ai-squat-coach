@@ -3,6 +3,8 @@ from statistics import median
 import time
 
 from pose.angles import calculate_angle
+from exercises.phase_alignment import align_front_frames
+from feedback.front_feedback import FrontFeedback
 
 
 class FrontSquatAnalyzer:
@@ -83,6 +85,8 @@ class FrontSquatAnalyzer:
         self.ascent_sync_buffer = deque(maxlen=5)
         self.current_min_knee_angle = 180.0
         self.phase_metrics = self._new_phase_metrics()
+        self.phase_trace = []
+        self.phase_trace_truncated = False
 
         self.last_rep = None
 
@@ -270,6 +274,8 @@ class FrontSquatAnalyzer:
         self.ascent_sync_buffer.clear()
         self.current_min_knee_angle = 180.0
         self.phase_metrics = self._new_phase_metrics()
+        self.phase_trace = []
+        self.phase_trace_truncated = False
 
     def clear_motion_buffers(self):
         self.shoulder_buffer.clear()
@@ -313,6 +319,38 @@ class FrontSquatAnalyzer:
         )
         self.baseline_shoulder_x = shoulder_center[0]
 
+    def _append_phase_frame(self, frame):
+        if len(self.phase_trace) < 1800:
+            self.phase_trace.append(frame)
+        else:
+            self.phase_trace_truncated = True
+
+    def _aligned_phase_metrics(self):
+        groups, audit = align_front_frames(self.phase_trace, self.phase_trace_truncated)
+        if groups is None:
+            return audit
+        self.phase_metrics = self._new_phase_metrics()
+        anchor = groups["bottom"][-1]
+        sync_buffer = deque(maxlen=5)
+        for phase, frames in groups.items():
+            for f in frames:
+                ascent_sync = None
+                if phase == "ascent":
+                    sp = (anchor["shoulder"] - f["shoulder"]) / max(abs(anchor["shoulder"]), .02)
+                    hp = (anchor["hip"] - f["hip"]) / max(abs(anchor["hip"]), .02)
+                    sync_buffer.append(abs(sp-hp))
+                    ascent_sync = median(sync_buffer)
+                self._record_phase_metrics(
+                    {"descent": "DESCENDING", "bottom": "BOTTOM", "ascent": "ASCENDING"}[phase],
+                    f["head"], f["shoulder_tilt"], f["hip_tilt"], f["center"],
+                    f["knee_asymmetry"], f["sync"], ascent_sync, f["knee_angle"])
+                metrics = self.phase_metrics[phase]
+                for key, source in (("max_left_inward", "left_inward"),
+                                    ("max_right_inward", "right_inward"),
+                                    ("max_symmetry_value", "knee_height")):
+                    metrics[key] = max(metrics.get(key, 0), f[source])
+        return audit
+
     def complete_rep(self, now):
         descent_time = None
         bottom_time = None
@@ -349,7 +387,12 @@ class FrontSquatAnalyzer:
                 - self.rep_start_time
             )
 
+        phase_alignment = self._aligned_phase_metrics()
         self.last_rep = {
+            "phase_alignment": phase_alignment,
+            "phase_timing_basis": "LIVE_STATE_MACHINE",
+            "phase_trace": [{**f, "time": round(f["time"]-self.phase_trace[0]["time"], 6)}
+                            for f in self.phase_trace],
             "rep": self.count,
             "view": "FRONT",
             "descent_time": descent_time,
@@ -917,6 +960,17 @@ class FrontSquatAnalyzer:
                 else None
             )
 
+            left_inward, right_inward, knee_height = FrontFeedback.calculate_metrics(
+                left_hip, right_hip, left_knee, right_knee, left_ankle, right_ankle)
+            self._append_phase_frame({
+                "time": now, "displacement": .65*shoulder_descent + .35*hip_descent,
+                "shoulder": shoulder_descent, "hip": hip_descent,
+                "head": head_shift, "shoulder_tilt": shoulder_tilt, "hip_tilt": hip_tilt,
+                "center": center_shift, "knee_asymmetry": knee_angle_asymmetry,
+                "knee_angle": average_knee_angle, "sync": abs(shoulder_descent-hip_descent),
+                "left_inward": left_inward, "right_inward": right_inward,
+                "knee_height": knee_height,
+            })
             self._record_phase_metrics(
                 self.phase,
                 smooth_head_shift,
