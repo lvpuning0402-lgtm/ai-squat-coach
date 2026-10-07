@@ -73,7 +73,8 @@ main{max-width:1100px;margin:40px auto;padding:0 24px}h1{margin:8px 0}h2{font-si
 section{background:white;border:1px solid #dce4e8;border-radius:14px;padding:24px;margin:20px 0}
 .tag{color:#126657;font-weight:700}.muted{color:#536571}table{border-collapse:collapse;width:100%;font-size:14px}
 th,td{text-align:left;padding:12px;border-bottom:1px solid #e3e9ed;vertical-align:top}th{background:#edf5f3;white-space:nowrap}
-.scroll{overflow-x:auto}code{overflow-wrap:anywhere;font-size:12px}details{margin:18px 0}summary{cursor:pointer}
+.scroll{overflow-x:auto}.scroll td:not(:last-child){white-space:nowrap}
+.scroll td:last-child{min-width:240px;overflow-wrap:anywhere}code{overflow-wrap:anywhere;font-size:12px}details{margin:18px 0}summary{cursor:pointer}
 @media(max-width:600px){main{margin:20px auto;padding:0 12px}section{padding:16px}h1{font-size:26px}}
 @media print{body{background:white}main{max-width:none;margin:0}section{break-inside:avoid}.scroll{overflow:visible}}
 </style></head><body><main><div class="tag">AI SPORT COACH · 离线复核</div>
