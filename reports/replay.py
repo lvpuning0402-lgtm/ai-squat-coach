@@ -34,18 +34,23 @@ def replay_report(source):
         rep = deepcopy(original)
         frames = rep.get('phase_trace')
         status = 'LEGACY_AGGREGATES_ONLY'
-        if frames:
+        if 'phase_trace' in rep and not isinstance(frames, list):
+            raise ValueError('Phase trace must be a list when present.')
+        if 'phase_trace' in rep:
             required = fields[rep['view']]
             if not isinstance(frames, list) or len(frames) > 1800:
                 raise ValueError('Invalid or oversized phase trace.')
             for frame in frames:
                 if (not isinstance(frame, dict) or not required <= frame.keys()
-                    or any(not isinstance(frame[k], (int, float)) or not math.isfinite(frame[k])
+                    or any(isinstance(frame[k], bool) or not isinstance(frame[k], (int, float)) or not math.isfinite(frame[k])
                            for k in required)):
                     raise ValueError('Phase trace has missing or nonfinite measurements.')
             engine = SideSquatAnalyzer() if rep['view'] == 'SIDE' else FrontSquatAnalyzer()
             engine.phase_trace = frames
-            engine.phase_trace_truncated = rep.get('phase_alignment', {}).get('reason') == 'TRACE_TRUNCATED'
+            previous_alignment = rep.get('phase_alignment', {})
+            if not isinstance(previous_alignment, dict):
+                raise ValueError('Phase alignment must be an object.')
+            engine.phase_trace_truncated = previous_alignment.get('reason') == 'TRACE_TRUNCATED'
             audit = engine._aligned_phase_metrics()
             rep['phase_alignment'] = audit
             if audit['status'] == 'ALIGNED':
@@ -69,15 +74,26 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('input', type=Path)
     parser.add_argument('--output', type=Path, help='New JSON path; existing files are never overwritten.')
+    parser.add_argument('--html', type=Path, help='New self-contained Chinese HTML review path.')
     args = parser.parse_args(argv)
     try:
         raw = args.input.read_bytes()
         report = replay_report(json.loads(raw))
         report['source_sha256'] = hashlib.sha256(raw).hexdigest()
+        outputs = {}
         if args.output:
-            # Exclusive creation protects both originals and previous replay outputs.
-            encoded = json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False)
-            with args.output.open('x', encoding='utf-8') as stream:
+            outputs[args.output] = json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False)
+        if args.html:
+            from reports.review_html import render_review_html
+            if args.output and args.output.resolve() == args.html.resolve():
+                raise ValueError('JSON and HTML output paths must differ.')
+            outputs[args.html] = render_review_html(report)
+        # Check every destination before creating either output.
+        for path in outputs:
+            if path.exists() or path.resolve() == args.input.resolve():
+                raise ValueError(f'Output already exists: {path}')
+        for path, encoded in outputs.items():
+            with path.open('x', encoding='utf-8') as stream:
                 stream.write(encoded)
         print(json.dumps({'source_session_id': report['source_session_id'],
                           'reps': len(report['reps']), 'replay_notes': report['replay_notes'],

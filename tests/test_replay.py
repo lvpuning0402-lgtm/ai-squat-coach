@@ -58,3 +58,54 @@ class ReplayTests(unittest.TestCase):
             self.assertEqual(len(replay['source_sha256']), 64)
             self.assertEqual(sorted(p.name for p in Path(directory).iterdir()), ['replay.json', 'session.json'])
             self.assertEqual(path.read_bytes(), original)
+
+    def test_empty_trace_cannot_retain_successful_alignment(self):
+        source = self.source()
+        source['reps'][0]['phase_trace'] = []
+        result = replay_report(source)
+        self.assertEqual(result['replay_notes'][0]['status'], 'UNAVAILABLE')
+        self.assertEqual(result['reps'][0]['detail_confidence'], 'LOW')
+
+    def test_falsey_trace_and_boolean_measurements_are_rejected(self):
+        for trace in (None, False, {}, ''):
+            source = self.source()
+            source['reps'][0]['phase_trace'] = trace
+            with self.assertRaises(ValueError):
+                replay_report(source)
+        source = self.source()
+        source['reps'][0]['phase_trace'][0]['time'] = True
+        with self.assertRaises(ValueError):
+            replay_report(source)
+
+    def test_html_output_and_collisions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)/'source.json'
+            source.write_text(json.dumps(self.source()), encoding='utf-8')
+            html = Path(directory)/'review.html'
+            output = Path(directory)/'result.json'
+            with redirect_stdout(io.StringIO()):
+                main([str(source), '--html', str(html)])
+            self.assertIn('离线复核', html.read_text(encoding='utf-8'))
+            with redirect_stderr(io.StringIO()):
+                for args in ([str(source), '--output', str(output), '--html', str(html)],
+                             [str(source), '--output', str(output), '--html', str(output)]):
+                    with self.assertRaises(SystemExit):
+                        main(args)
+            self.assertFalse(output.exists())
+
+    def test_html_escapes_content_and_hides_unreliable_scores(self):
+        from reports.review_html import render_review_html
+        result = replay_report(self.source())
+        result['coach_feedback']['headline'] = '<script>alert(1)</script>'
+        rep = result['reps'][0]
+        rep['detail_confidence'] = 'LOW'
+        rep['detail_score'] = 98.765
+        for data in rep['phase_scores'].values():
+            data['score'] = 98.765
+            data['confidence'] = 'MEDIUM'
+        rep['confidence_breakdown']['pose_quality'] = 'LOW'
+        html = render_review_html(result)
+        self.assertNotIn('<script>', html)
+        self.assertIn('&lt;script&gt;', html)
+        self.assertNotIn('约 99', html.split('<h2>逐次结果</h2>')[1])
+        self.assertIn('证据不足', html)

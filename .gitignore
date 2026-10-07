@@ -224,3 +224,5 @@ data/*.db-*
 reports/*.json
 reports/*.csv
 reports/depth_captures/
+
+reports/*.html
