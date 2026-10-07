@@ -249,6 +249,21 @@ class SessionInsightBuilderTests(unittest.TestCase):
         )
 
 
+    def test_mixed_detail_severities_report_separate_counts(self):
+        reps = [{"rep": i, "view": "FRONT", "standard_met": True,
+                 "issues": [], "detail_warnings": ["knee_angle_symmetry"],
+                 "detail_checks": {"knee_angle_symmetry": {"state": state}}}
+                for i, state in enumerate(["REVIEW"] * 4 + ["WATCH"], 1)]
+        result = SessionInsightBuilder().build(reps, {}, "TEST")
+        self.assertEqual(result["detail_focus_counts"],
+                         {"review": 4, "watch": 1, "total": 5})
+        self.assertIn("需复核 4 次，留意 1 次", result["focus"])
+        self.assertEqual(result["detail_focus_severity"], "REVIEW")
+        reps[0]["set_valid"] = False
+        result = SessionInsightBuilder().build(reps, {}, "TEST")
+        self.assertEqual(result["detail_focus_counts"],
+                         {"review": 3, "watch": 1, "total": 4})
+
     def test_session_feedback_reports_weakest_phase(self):
         builder = SessionInsightBuilder()
 

@@ -53,7 +53,10 @@ def render_review_html(report):
             deductions = {d['name']: d.get('lost_points', 0) for d in rep.get('detail_deductions', [])}
             warnings = sorted(rep.get('detail_warnings', []), key=lambda name: (
                 checks.get(name, {}).get('state') == 'REVIEW', deductions.get(name, 0)), reverse=True)
-            detail = '；'.join(SessionInsightBuilder.DETAIL_TEXT_ZH.get(w, w) for w in warnings) or '暂无细节提示'
+            detail = '；'.join(
+                SessionInsightBuilder.DETAIL_TEXT_ZH.get(w, w) +
+                ('（需复核）' if checks.get(w, {}).get('state') == 'REVIEW' else '（留意）')
+                for w in warnings) or '暂无细节提示'
         evidence = rep.get('confidence_breakdown', {})
         phase_available = valid and all(evidence.get(k) in ('HIGH', 'MEDIUM')
                                         for k in ('pose_quality', 'view_quality'))
@@ -83,7 +86,7 @@ th,td{text-align:left;padding:12px;border-bottom:1px solid #e3e9ed;vertical-alig
         '<section><h2>教练反馈</h2>' + (feedback or '<p>暂无可用反馈。</p>') + '</section>' + \
         '<section><h2>分阶段观察</h2><p class="muted">正面与侧面分开统计。各阶段可能来自不同动作子集，不能直接据此比较最弱阶段。约数为中等置信度参考值。</p>' + \
         (''.join(sections) or '<p>暂无可用阶段数据。</p>') + '</section>' + \
-        '<section><h2>逐次结果</h2><p class="muted">整体细节分和阶段分使用不同汇总口径；标准通过不等于所有细节都完美。</p><div class="scroll"><table><thead><tr>' + \
+        '<section><h2>逐次结果</h2><p class="muted">整体细节分和阶段分使用不同汇总口径；标准通过不等于所有细节都完美。留意 = WATCH，需复核 = REVIEW，均为程序提示，不是动作问题的确诊。</p><div class="scroll"><table><thead><tr>' + \
         ''.join(f'<th>{label}</th>' for label in ('次数', '视角', '标准', '细节分', '置信度', '下降', '底部', '起身', '细节提示')) + \
         '</tr></thead><tbody>' + ''.join(detail_rows) + '</tbody></table></div></section>' + \
         '<details><summary>数据来源与回放状态</summary><p>原报告 SHA256：<code>' + text(report.get('source_sha256', '未提供')) + \

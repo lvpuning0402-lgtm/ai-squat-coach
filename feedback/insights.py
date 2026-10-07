@@ -439,6 +439,13 @@ class SessionInsightBuilder:
             valid_reps
         )
 
+        detail_review_count = sum(
+            1 for rep in valid_reps
+            if detail_focus in rep.get("detail_warnings", [])
+            and rep.get("detail_checks", {}).get(detail_focus, {}).get("state") == "REVIEW"
+        )
+        detail_watch_count = detail_focus_count - detail_review_count
+
         weakest_phase_data = summary.get(
             "weakest_phase"
         ) or {}
@@ -562,7 +569,7 @@ class SessionInsightBuilder:
             focus = (
                 f"硬性标准已通过，但 {detail_focus_count}/{total} 次动作"
                 f"出现“{detail_label}”细节提示"
-                f"（{detail_focus_severity}）。"
+                f"（需复核 {detail_review_count} 次，留意 {detail_watch_count} 次）。"
             )
         elif (
             top_deduction
@@ -834,6 +841,8 @@ class SessionInsightBuilder:
             "detail_focus": detail_focus,
             "detail_focus_rate": detail_focus_rate,
             "detail_focus_severity": detail_focus_severity,
+            "detail_focus_counts": {"review": detail_review_count, "watch": detail_watch_count,
+                                    "total": detail_focus_count},
             "selected_focus": selected_focus,
             "phase_focus": phase_focus,
             "phase_focus_score": phase_focus_score,
