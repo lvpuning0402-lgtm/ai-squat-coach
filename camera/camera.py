@@ -602,31 +602,26 @@ def _rep_detail_state(
         {}
     )
 
-    states = [
-        checks.get(
-            warning,
-            {}
-        ).get(
-            "state",
-            "WATCH"
-        )
-        for warning in warnings
-    ]
-
+    # Choose a warning that actually explains the displayed severity. Input
+    # order follows metric definitions and is not a priority ranking.
+    deductions = {
+        item["name"]: item.get("lost_points", 0.0)
+        for item in rep.get("detail_deductions", [])
+    }
+    severity = {"REVIEW": 2, "WATCH": 1}
+    selected = max(
+        warnings,
+        key=lambda name: (
+            severity.get(checks.get(name, {}).get("state", "WATCH"), 0),
+            deductions.get(name, 0.0),
+        ),
+    )
     detail_state = (
         "REVIEW"
-        if "REVIEW" in states
+        if checks.get(selected, {}).get("state") == "REVIEW"
         else "WATCH"
     )
-
-    issue_text = str(
-        warnings[
-            0
-        ]
-    ).replace(
-        "_",
-        " "
-    )
+    issue_text = str(selected).replace("_", " ")
 
     if len(
         warnings

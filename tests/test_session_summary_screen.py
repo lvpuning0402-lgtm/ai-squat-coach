@@ -220,6 +220,26 @@ class SessionSummaryScreenTests(unittest.TestCase):
             line
         )
 
+    def test_timeline_focus_explains_severity_before_deduction_size(self):
+        rep = {
+            "detail_warnings": ["shoulder_level", "knee_angle_symmetry"],
+            "detail_checks": {
+                "shoulder_level": {"state": "WATCH"},
+                "knee_angle_symmetry": {"state": "REVIEW"},
+            },
+            "detail_deductions": [
+                {"name": "shoulder_level", "lost_points": 5},
+                {"name": "knee_angle_symmetry", "lost_points": 3},
+            ],
+        }
+        self.assertEqual(_rep_detail_state(rep),
+                         ("REVIEW", "knee angle symmetry +1"))
+        rep["detail_checks"]["shoulder_level"]["state"] = "REVIEW"
+        self.assertEqual(_rep_detail_state(rep),
+                         ("REVIEW", "shoulder level +1"))
+        rep["detail_confidence"] = "LOW"
+        self.assertEqual(_rep_detail_state(rep), ("UNSURE", "Check capture"))
+
     def test_timeline_marks_excluded_rep(self):
         line = _rep_timeline_line({
             "rep": 3,
