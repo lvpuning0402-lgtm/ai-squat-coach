@@ -2894,8 +2894,11 @@ def run_camera():
             print(
                 "SESSION REPORT | "
                 f"JSON {report_paths['json']} | "
-                f"CSV {report_paths['csv']}"
+                f"CSV {report_paths['csv']} | "
+                f"HTML {report_paths.get('html') or 'unavailable'}"
             )
+            if report_paths.get("html_error"):
+                print(f"HTML report unavailable: {report_paths['html_error']}. JSON and CSV are saved.")
 
             coach_feedback = report_paths[
                 "report"

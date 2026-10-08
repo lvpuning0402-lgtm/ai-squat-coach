@@ -1,11 +1,13 @@
 import csv
 import json
+import hashlib
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 from statistics import mean
 
 from feedback.insights import SessionInsightBuilder
+from reports.review_html import render_review_html
 
 
 class SessionReportExporter:
@@ -751,6 +753,16 @@ class SessionReportExporter:
 
         return path
 
+    def export_html(self, report, stem, json_path):
+        # Hash the exact saved JSON bytes, without changing its schema or scores.
+        display = dict(report)
+        display["source_sha256"] = hashlib.sha256(json_path.read_bytes()).hexdigest()
+        encoded = render_review_html(display)
+        path = self.output_dir / f"{stem}.html"
+        with path.open("x", encoding="utf-8") as stream:
+            stream.write(encoded)
+        return path
+
     def export_session(
         self,
         session_id,
@@ -768,7 +780,7 @@ class SessionReportExporter:
         )
 
         timestamp = datetime.now().strftime(
-            "%Y%m%d_%H%M%S"
+            "%Y%m%d_%H%M%S_%f"
         )
 
         stem = (
@@ -785,6 +797,15 @@ class SessionReportExporter:
             stem
         )
 
+        html_path = None
+        html_error = None
+        try:
+            html_path = self.export_html(report, stem, json_path)
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            # Core reports are already saved; a presentation error must not
+            # hide them or prevent the end-of-session summary.
+            html_error = str(exc)
+
         return {
             "json": str(
                 json_path
@@ -792,5 +813,7 @@ class SessionReportExporter:
             "csv": str(
                 csv_path
             ),
+            "html": str(html_path) if html_path else None,
+            "html_error": html_error,
             "report": report
         }

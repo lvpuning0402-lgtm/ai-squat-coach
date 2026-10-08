@@ -1,4 +1,4 @@
-"""Render offline replay results as a self-contained, escaped Chinese report."""
+"""Render session and offline replay results as a self-contained, escaped Chinese report."""
 from html import escape
 import math
 
@@ -22,7 +22,16 @@ def score(value, confidence):
 
 
 def render_review_html(report):
-    """Display an OFFLINE_REPLAY result; no camera, scripts or network resources."""
+    """Display saved results without recomputing scores or accessing devices."""
+    replay = report.get('report_context') == 'OFFLINE_REPLAY'
+    mode = '离线复核' if replay else '训练总结'
+    description = ('使用当前代码重新计算历史报告，不代表一次新训练；未写入训练数据库。'
+                   if replay else '本次训练结束时保存的结果，与同名 JSON 报告一致。')
+    session_id = report.get('source_session_id') if replay else report.get('session_id')
+    notes = report.get('replay_notes', []) if replay else [
+        {'rep': r.get('rep'), 'status': r.get('phase_alignment', {}).get('status', '未记录')}
+        for r in report.get('reps', [])]
+
     summary = report.get('summary', {})
     coach = report.get('coach_feedback', {})
     reps = report.get('reps', [])
@@ -70,7 +79,7 @@ def render_review_html(report):
     feedback = ''.join(f'<p>{text(coach[k])}</p>' for k in ('headline', 'overview', 'focus', 'next_action') if coach.get(k))
     return '''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>深蹲训练 · 离线复核</title><style>
+<title>深蹲训练报告</title><style>
 *{box-sizing:border-box}body{margin:0;background:#f2f5f7;color:#182c37;font:16px/1.7 system-ui,sans-serif}
 main{max-width:1100px;margin:40px auto;padding:0 24px}h1{margin:8px 0}h2{font-size:22px}h3{font-size:18px}
 section{background:white;border:1px solid #dce4e8;border-radius:14px;padding:24px;margin:20px 0}
@@ -80,16 +89,14 @@ th,td{text-align:left;padding:12px;border-bottom:1px solid #e3e9ed;vertical-alig
 .scroll td:last-child{min-width:240px;overflow-wrap:anywhere}code{overflow-wrap:anywhere;font-size:12px}details{margin:18px 0}summary{cursor:pointer}
 @media(max-width:600px){main{margin:20px auto;padding:0 12px}section{padding:16px}h1{font-size:26px}}
 @media print{body{background:white}main{max-width:none;margin:0}section{break-inside:avoid}.scroll{overflow:visible}}
-</style></head><body><main><div class="tag">AI SPORT COACH · 离线复核</div>
-<h1>深蹲训练报告</h1><p class="muted">使用当前代码重新计算历史报告，不代表一次新训练；未写入训练数据库。</p>
-''' + f'<p>来源训练：{text(report.get("source_session_id", "未知"))} · 类型：{text(report.get("session_type", "未知"))} · 动作记录：{len(reps)} 次</p>' + \
+</style></head><body><main>''' + f'<div class="tag">AI SPORT COACH · {mode}</div><h1>深蹲训练报告</h1><p class="muted">{description}</p>' + f'<p>来源训练：{text(session_id)} · 类型：{text(report.get("session_type", "未知"))} · 动作记录：{len(reps)} 次</p>' + \
         '<section><h2>教练反馈</h2>' + (feedback or '<p>暂无可用反馈。</p>') + '</section>' + \
         '<section><h2>分阶段观察</h2><p class="muted">正面与侧面分开统计。各阶段可能来自不同动作子集，不能直接据此比较最弱阶段。约数为中等置信度参考值。</p>' + \
         (''.join(sections) or '<p>暂无可用阶段数据。</p>') + '</section>' + \
         '<section><h2>逐次结果</h2><p class="muted">整体细节分和阶段分使用不同汇总口径；标准通过不等于所有细节都完美。留意 = WATCH，需复核 = REVIEW，均为程序提示，不是动作问题的确诊。</p><div class="scroll"><table><thead><tr>' + \
         ''.join(f'<th>{label}</th>' for label in ('次数', '视角', '标准', '细节分', '置信度', '下降', '底部', '起身', '细节提示')) + \
         '</tr></thead><tbody>' + ''.join(detail_rows) + '</tbody></table></div></section>' + \
-        '<details><summary>数据来源与回放状态</summary><p>原报告 SHA256：<code>' + text(report.get('source_sha256', '未提供')) + \
-        '</code></p><ul>' + ''.join(f'<li>第 {text(n.get("rep"))} 次：{text(n.get("status"))}</li>' for n in report.get('replay_notes', [])) + \
+        '<details><summary>数据来源与对齐状态</summary><p>原报告 SHA256：<code>' + text(report.get('source_sha256', '未提供')) + \
+        '</code></p><ul>' + ''.join(f'<li>第 {text(n.get("rep"))} 次：{text(n.get("status"))}</li>' for n in notes) + \
         '</ul><p>ALIGNED：逐帧重新对齐；LEGACY_AGGREGATES_ONLY：仅复算旧聚合指标；UNAVAILABLE：对齐不可用。对齐成功仍是工程近似，不等于真人准确性验证。</p></details>' + \
         '<p class="muted">仅供训练观察，不是医学诊断或比赛裁判结果。TEST 数据不用于正式训练趋势。</p></main></body></html>'

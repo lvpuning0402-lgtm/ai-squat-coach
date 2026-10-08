@@ -152,3 +152,39 @@ class SessionReportExporterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class AutomaticHtmlTests(unittest.TestCase):
+    def test_session_html_matches_saved_report_without_replay_label(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            exporter = SessionReportExporter(directory)
+            result = exporter.export_session(37, [], {}, session_type='TEST')
+            self.assertIsNone(result['html_error'])
+            html = Path(result['html']).read_text(encoding='utf-8')
+            raw = Path(result['json']).read_bytes()
+            self.assertIn('AI SPORT COACH · 训练总结', html)
+            self.assertIn('来源训练：37', html)
+            self.assertNotIn('使用当前代码重新计算历史报告', html)
+            self.assertIn(hashlib.sha256(raw).hexdigest(), html)
+            self.assertEqual(Path(result['html']).stem, Path(result['json']).stem)
+            self.assertEqual(json.loads(raw), result['report'])
+
+    def test_html_failure_preserves_core_reports(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            exporter = SessionReportExporter(directory)
+            with patch.object(exporter, 'export_html', side_effect=OSError('write denied')):
+                result = exporter.export_session(38, [], {})
+            self.assertIsNone(result['html'])
+            self.assertEqual(result['html_error'], 'write denied')
+            self.assertTrue(Path(result['json']).is_file())
+            self.assertTrue(Path(result['csv']).is_file())
+
+    def test_repeated_exports_have_distinct_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            exporter = SessionReportExporter(directory)
+            first = exporter.export_session(39, [], {})
+            original = Path(first['json']).read_bytes()
+            second = exporter.export_session(39, [], {})
+            self.assertNotEqual(first['json'], second['json'])
+            self.assertEqual(Path(first['json']).read_bytes(), original)
