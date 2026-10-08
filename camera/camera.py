@@ -1,5 +1,7 @@
 from datetime import datetime
 from pathlib import Path
+from time import monotonic
+from camera.auto_capture import AutoCapture
 
 import cv2
 import numpy as np
@@ -1669,6 +1671,9 @@ def run_camera():
     previous_side_depth_margin = None
     depth_capture_pending = []
     depth_capture_index = 0
+    auto_capture = AutoCapture()
+    auto_photo_notice = None
+    auto_photo_notice_until = 0.0
     last_depth_capture_frame = {
         "GENERAL_PARALLEL": -1000,
         "IPF_PROXY": -1000
@@ -2635,7 +2640,7 @@ def run_camera():
                 frame,
                 (
                     f"UI: {display_mode}  |  "
-                    f"M = UI  |  T = {session_type}"
+                    f"M = UI  |  T = {session_type}  |  C = rearm photo"
                 ),
                 16,
                 camera_height - 12,
@@ -2723,12 +2728,41 @@ def run_camera():
                 )
                 depth_capture_notice_frames -= 1
 
+            photo_now = monotonic()
+            take_photo, photo_message = auto_capture.update(
+                photo_now, view, raw_view, framing["status"], capture_landmarks
+            )
+            draw_text(frame, photo_message, 16, camera_height - 60,
+                      scale=0.43, thickness=2)
+            if take_photo:
+                photo_dir = Path("reports") / "auto_captures"
+                photo_name = f"session_{session_id}_{view}_{datetime.now():%Y%m%d_%H%M%S_%f}.png"
+                photo_path = photo_dir / photo_name
+                try:
+                    photo_dir.mkdir(parents=True, exist_ok=True)
+                    if not cv2.imwrite(str(photo_path), frame):
+                        raise OSError("Image encoder could not save screenshot")
+                    auto_photo_notice = "PHOTO SAVED - reports/auto_captures"
+                    session_diagnostics.setdefault("auto_screenshots", []).append(str(photo_path))
+                    print(f"AUTO SCREENSHOT | {photo_path}")
+                except (OSError, cv2.error) as exc:
+                    auto_photo_notice = "PHOTO SAVE FAILED - press C to retry"
+                    print(f"AUTO SCREENSHOT FAILED | {exc}")
+                auto_photo_notice_until = photo_now + 5.0
+            if auto_photo_notice and photo_now < auto_photo_notice_until:
+                draw_text(frame, auto_photo_notice, 16, camera_height - 84,
+                          scale=0.43, thickness=2)
+
             cv2.imshow(
                 window_name,
                 frame
             )
 
             key = cv2.waitKey(1) & 0xFF
+
+            if key in (ord("c"), ord("C")):
+                auto_capture.rearm()
+                auto_photo_notice = None
 
             if key in (
                 ord("m"),
