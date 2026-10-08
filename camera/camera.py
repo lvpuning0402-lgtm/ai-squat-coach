@@ -11,6 +11,7 @@ from exercises.front_squat import FrontSquatAnalyzer
 from exercises.side_squat import SideSquatAnalyzer
 
 from feedback.capture_quality import RepCaptureTracker, assessment_limited
+from feedback.framing import framing_hint
 from feedback.front_feedback import FrontFeedback, merge_front_rep_feedback
 from feedback.performance import SessionPerformanceAnalyzer
 from feedback.insights import SessionInsightBuilder
@@ -2586,6 +2587,19 @@ def run_camera():
                         f"Raw view: {raw_view}",
                         f"View ratio: {view_ratio:.2f}"
                     ]
+
+            framing = framing_hint(
+                capture_landmarks, view, active_leg,
+                detected=bool(result.pose_landmarks)
+            )
+            counts = session_diagnostics.setdefault("framing_status_counts", {})
+            counts[framing["status"]] = counts.get(framing["status"], 0) + 1
+            session_diagnostics["last_framing_status"] = framing["status"]
+            if framing["status"] != "VISIBLE":
+                position = framing["message"]
+            elif position == "POSITION GOOD":
+                position = "VIEW OK / POINTS VISIBLE"
+            debug_lines.append(f"Capture: {framing['status']}")
 
             simple_lines = [
                 f"Standard: {STANDARD_NAME}",

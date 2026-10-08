@@ -248,3 +248,18 @@ Start-Process reports/review_36.html
 
 更新后的端到端验证：TEST 模式自然完成正面 3 次，按 Q 结束，确认出现同名
 三种文件。提交新 JSON、HTML 页面截图和实际次数；不需要刻意改变动作追分。
+
+## 实时拍摄提示（2026-10-09）
+
+实时状态栏现在区分视角和关键点可见度：
+- `VIEW OK / POINTS VISIBLE`：视角合适，所需关键点当前可见。
+- `HEAD / SHOULDERS / HIPS / KNEES / ANKLES: not clear`：对应点缺失或可见度不足。
+- `out of frame`：对应点坐标超出画面；`near edge`：距离画面边缘不足 4%。
+- `CAPTURE: body not detected`：当前帧未检测到人体，不使用旧关键点报“可见”。
+
+这些是拍摄提示，不改变计数、评分或现有可见度阈值。侧面使用当前活动侧关键点。
+“关键点可见”不保证头顶、脚尖完整入镜，也不保证下蹲过程中仍有足够空间。
+空间受限时优先调整镜头方向或位置，不必勉强后退。JSON diagnostics 新增
+`framing_status_counts` 和 `last_framing_status`，包括等待帧，仅用于采集排查。
+
+本模块只需站立验证：打开摄像头，观察提示是否符合当前取景；无需做深蹲。
