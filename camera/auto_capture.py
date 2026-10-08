@@ -3,7 +3,7 @@ import math
 
 
 class AutoCapture:
-    def __init__(self, hold_seconds=3.0):
+    def __init__(self, hold_seconds=5.0):
         self.hold_seconds = hold_seconds
         self.captured = set()
         self.reset_hold()

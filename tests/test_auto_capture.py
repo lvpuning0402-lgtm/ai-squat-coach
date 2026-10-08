@@ -8,12 +8,12 @@ class AutoCaptureTests(unittest.TestCase):
 
     def run_hold(self, capture, start=0, view='FRONT'):
         return [capture.update(start + i / 10, view, view, 'VISIBLE', self.points())[0]
-                for i in range(41)]
+                for i in range(61)]
 
-    def test_three_seconds_and_no_repeated_photos(self):
+    def test_five_seconds_and_no_repeated_photos(self):
         capture = AutoCapture()
         shots = self.run_hold(capture)
-        self.assertFalse(any(shots[:30]))
+        self.assertFalse(any(shots[:50]))
         self.assertEqual(sum(shots), 1)
         self.assertEqual(sum(self.run_hold(capture, 5)), 0)
         self.assertEqual(sum(self.run_hold(capture, 10, 'SIDE')), 1)
@@ -27,7 +27,7 @@ class AutoCaptureTests(unittest.TestCase):
         self.assertFalse(capture.update(2.5, 'FRONT', 'FRONT', 'LOW_VISIBILITY', self.points())[0])
         self.assertFalse(capture.update(2.6, 'FRONT', 'TRANSITION', 'VISIBLE', self.points())[0])
         shots = self.run_hold(capture, 2.7)
-        self.assertFalse(any(shots[:30]))
+        self.assertFalse(any(shots[:50]))
         self.assertEqual(sum(shots), 1)
 
     def test_motion_and_camera_gap_restart_hold(self):

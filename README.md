@@ -267,8 +267,8 @@ Start-Process reports/review_36.html
 ## 免手动自动截图（2026-10-09）
 
 启动后自动启用：视角稳定为 FRONT / SIDE、所需关键点清楚且远离边缘，
-保持基本不动 3 秒，自动保存当前带骨架和 UI 的截图至 `reports/auto_captures/`。
-底部显示 `hold still 3s` 倒计时，成功后显示 `PHOTO SAVED`。
+保持基本不动 5 秒，自动保存当前带骨架和 UI 的截图至 `reports/auto_captures/`。
+底部显示 `hold still 5s` 倒计时，成功后显示 `PHOTO SAVED`。
 这只确认拍摄条件，并不认证动作正确。画面丢失、关键点移动、视角变化或
 处理间隔超过 0.5 秒会重新计时。稳态判定容差为归一化坐标距离 0.025，待真人验证。
 
