@@ -1,5 +1,51 @@
 """Camera text that adapts to the brightness directly behind it."""
+from collections import OrderedDict
+from math import exp
+from time import monotonic
+
 import cv2
+
+
+class AdaptiveTextColors:
+    """Time-based smoothing, hysteresis and dwell per screen position."""
+
+    def __init__(self):
+        self.states = OrderedDict()
+
+    def clear(self):
+        self.states.clear()
+
+    def color(self, key, brightness, now):
+        state = self.states.pop(key, None)
+        if state is None or now - state['seen'] > 2 or now < state['seen']:
+            state = dict(mean=brightness, dark=brightness >= 145,
+                         seen=now, changed=now, pending=None)
+        else:
+            dt = now - state['seen']
+            state['mean'] += (brightness - state['mean']) * (1 - exp(-dt / .3))
+            state['seen'] = now
+            # A neutral band preserves the current color under exposure noise.
+            change = (state['mean'] < 120 if state['dark']
+                      else state['mean'] > 170)
+            if not change:
+                state['pending'] = None
+            elif state['pending'] is None:
+                state['pending'] = now
+            elif now - state['pending'] >= .7 and now - state['changed'] >= 1.5:
+                state['dark'] = not state['dark']
+                state['changed'] = now
+                state['pending'] = None
+        self.states[key] = state
+        if len(self.states) > 128:
+            self.states.popitem(last=False)
+        return (0, 0, 0) if state['dark'] else (255, 255, 255)
+
+
+_live_colors = AdaptiveTextColors()
+
+
+def reset_text_colors():
+    _live_colors.clear()
 
 
 def text_color(frame, text, x, y, scale, thickness=1):
@@ -13,7 +59,8 @@ def text_color(frame, text, x, y, scale, thickness=1):
     if left < right and top < bottom:
         region = frame[top:bottom, left:right]
         brightness = cv2.mean(cv2.cvtColor(region, cv2.COLOR_BGR2GRAY))[0]
-    return (0, 0, 0) if brightness >= 145 else (255, 255, 255)
+    # Content and font size can change during the countdown; keep its history.
+    return _live_colors.color((rows, cols, x, y), brightness, monotonic())
 
 
 def draw_adaptive_text(frame, text, x, y, scale=.47, thickness=1):

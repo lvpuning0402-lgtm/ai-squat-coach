@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from time import monotonic
 from camera.auto_capture import AutoCapture
-from camera.status_banner import draw_adaptive_text, draw_status_banner
+from camera.status_banner import draw_adaptive_text, draw_status_banner, reset_text_colors
 from reports.open_latest import open_path
 
 import cv2
@@ -1619,6 +1619,7 @@ def draw_interface(
             )
 
 def run_camera():
+    reset_text_colors()
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
