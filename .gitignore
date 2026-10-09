@@ -228,3 +228,5 @@ reports/depth_captures/
 reports/*.html
 
 reports/auto_captures/
+
+reports/session_*.png

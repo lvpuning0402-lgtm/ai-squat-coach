@@ -277,3 +277,17 @@ class IndependentPhaseDisplayTests(unittest.TestCase):
         self.assertIn('~94 / ~93', lines[0])
         self.assertIn('n=0/3/3', lines[0])
         self.assertIn('observations', lines[1])
+
+class SummaryImageTests(unittest.TestCase):
+    def test_summary_image_is_saved_and_existing_image_is_preserved(self):
+        import tempfile
+        from pathlib import Path
+        import cv2
+        from camera.camera import save_summary_screenshot
+        with tempfile.TemporaryDirectory() as directory:
+            path = save_summary_screenshot([], {}, 'TEST', Path(directory) / 'session_1.json')
+            self.assertEqual(cv2.imread(str(path)).shape, (900, 1080, 3))
+            original = path.read_bytes()
+            with self.assertRaises(FileExistsError):
+                save_summary_screenshot([], {}, 'TEST', path.with_suffix('.json'))
+            self.assertEqual(path.read_bytes(), original)

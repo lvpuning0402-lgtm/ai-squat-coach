@@ -278,3 +278,24 @@ Start-Process reports/review_36.html
 
 验证时自然站立等待倒计时即可，不用做深蹲，也不用离开拍摄位置去按截图键。
 结束后从上述目录找到 PNG 发回。若始终不倒计时，检查画面提示，勿勉强后退。
+
+## 采集与报告快捷操作整批更新（2026-10-09）
+
+- 自动截图倒计时与保存结果使用深色底板，浅色床单、墙壁前也能读清。
+- 自动截图保持 5 秒等待；JSON 的 `diagnostics.auto_screenshot_events` 记录
+  要求时长、实际稳定时长、保存时间和图片路径。保存失败不会显示已保存。
+- 训练结束除 JSON、CSV、HTML 外，自动生成同名总结 PNG，无需手动截屏。
+  总结 PNG 不包含摄像头画面；站立自动截图仍在 `reports/auto_captures/`。
+- 总结窗口按 H 打开本次 HTML，按 F 打开报告文件夹。打开失败在终端显示原因。
+- 已退出程序时，可运行下面命令打开最新训练报告或报告目录：
+
+```powershell
+python -m reports.open_latest
+python -m reports.open_latest --folder
+```
+
+最新报告按 JSON 内的生成时间选择，跳过损坏文件和离线回放文件；若最新训练
+没有 HTML，会提示缺失，不会悄悄打开上一条训练。已有总结 PNG 不会被覆盖。
+
+一次性验证：更新后自然站立等待自动截图，按 Q 结束，在总结页按 H / F 验证
+快捷入口，检查 reports 中的新 JSON、CSV、HTML、PNG。无需重复做深蹲。

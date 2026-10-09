@@ -2,6 +2,8 @@ from datetime import datetime
 from pathlib import Path
 from time import monotonic
 from camera.auto_capture import AutoCapture
+from camera.status_banner import draw_status_banner
+from reports.open_latest import open_path
 
 import cv2
 import numpy as np
@@ -1102,7 +1104,7 @@ def build_session_summary_frame(
 
     draw_text(
         frame,
-        "Q / ESC / ENTER = CLOSE",
+        "H = HTML REPORT | F = REPORT FOLDER | Q / ESC / ENTER = CLOSE",
         margin,
         height - 20,
         scale=0.40,
@@ -1112,11 +1114,23 @@ def build_session_summary_frame(
     return frame
 
 
+def save_summary_screenshot(reps, summary, session_type, json_path):
+    path = Path(json_path).with_suffix(".png")
+    frame = build_session_summary_frame(reps, summary, session_type)
+    ok, encoded = cv2.imencode(".png", frame)
+    if not ok:
+        raise OSError("Summary image encoder failed")
+    with path.open("xb") as stream:
+        stream.write(encoded.tobytes())
+    return path
+
+
 def show_session_summary_screen(
     window_name,
     reps,
     summary,
-    session_type
+    session_type,
+    report_paths=None
 ):
     summary_frame = build_session_summary_frame(
         reps,
@@ -1132,7 +1146,7 @@ def show_session_summary_screen(
 
         print(
             "训练总结页面已显示，"
-            "按 Q / ESC / Enter 关闭。"
+            "按 H 打开中文报告，F 打开报告目录，Q / ESC / Enter 关闭。"
         )
 
         while True:
@@ -1142,6 +1156,14 @@ def show_session_summary_screen(
                 )
                 & 0xFF
             )
+
+            if key in (ord("h"), ord("H"), ord("f"), ord("F")):
+                target = (report_paths or {}).get("html") if key in (ord("h"), ord("H")) else "reports"
+                try:
+                    if not target or not open_path(target):
+                        print("报告未能自动打开，请到 reports 目录查看。")
+                except (OSError, ValueError) as error:
+                    print(f"打开报告失败：{error}")
 
             if key in (
                 ord("q"),
@@ -2732,8 +2754,7 @@ def run_camera():
             take_photo, photo_message = auto_capture.update(
                 photo_now, view, raw_view, framing["status"], capture_landmarks
             )
-            draw_text(frame, photo_message, 16, camera_height - 60,
-                      scale=0.43, thickness=2)
+            draw_status_banner(frame, photo_message, bottom=60)
             if take_photo:
                 photo_dir = Path("reports") / "auto_captures"
                 photo_name = f"session_{session_id}_{view}_{datetime.now():%Y%m%d_%H%M%S_%f}.png"
@@ -2744,14 +2765,17 @@ def run_camera():
                         raise OSError("Image encoder could not save screenshot")
                     auto_photo_notice = "PHOTO SAVED - reports/auto_captures"
                     session_diagnostics.setdefault("auto_screenshots", []).append(str(photo_path))
+                    session_diagnostics.setdefault("auto_screenshot_events", []).append({
+                        **auto_capture.last_trigger, "path": str(photo_path),
+                        "saved_at": datetime.now().isoformat(timespec="milliseconds")})
                     print(f"AUTO SCREENSHOT | {photo_path}")
                 except (OSError, cv2.error) as exc:
+                    auto_capture.save_failed(view)
                     auto_photo_notice = "PHOTO SAVE FAILED - press C to retry"
                     print(f"AUTO SCREENSHOT FAILED | {exc}")
                 auto_photo_notice_until = photo_now + 5.0
             if auto_photo_notice and photo_now < auto_photo_notice_until:
-                draw_text(frame, auto_photo_notice, 16, camera_height - 84,
-                          scale=0.43, thickness=2)
+                draw_status_banner(frame, auto_photo_notice, bottom=96)
 
             cv2.imshow(
                 window_name,
@@ -2829,6 +2853,7 @@ def run_camera():
         )
 
         summary = performance.get_set_summary()
+        report_paths = None
 
         valid_reps = [
             rep
@@ -2947,6 +2972,14 @@ def run_camera():
             )
             if report_paths.get("html_error"):
                 print(f"HTML report unavailable: {report_paths['html_error']}. JSON and CSV are saved.")
+
+            try:
+                summary_path = save_summary_screenshot(
+                    performance.reps, summary, session_type, report_paths["json"])
+                report_paths["summary_png"] = str(summary_path)
+                print(f"SUMMARY SCREENSHOT | {summary_path}")
+            except (OSError, cv2.error) as error:
+                print(f"Summary screenshot warning: {error}")
 
             coach_feedback = report_paths[
                 "report"
@@ -3086,7 +3119,8 @@ def run_camera():
                 window_name,
                 performance.reps,
                 summary,
-                session_type
+                session_type,
+                report_paths=report_paths
             )
 
         cap.release()

@@ -38,3 +38,15 @@ class AutoCaptureTests(unittest.TestCase):
         self.assertEqual(capture.started, 2.5)
         self.assertFalse(capture.update(8, 'FRONT', 'FRONT', 'VISIBLE', self.points(.6))[0])
         self.assertEqual(capture.started, 8)
+
+    def test_trigger_records_stable_duration_and_save_failure_is_not_success(self):
+        capture = AutoCapture()
+        self.run_hold(capture)
+        self.assertEqual(capture.last_trigger['required_seconds'], 5.0)
+        self.assertGreaterEqual(capture.last_trigger['stable_seconds'], 5.0)
+        capture.save_failed('FRONT')
+        take, message = capture.update(8, 'FRONT', 'FRONT', 'VISIBLE', self.points())
+        self.assertFalse(take)
+        self.assertIn('FAILED', message)
+        capture.rearm()
+        self.assertEqual(sum(self.run_hold(capture, 10)), 1)

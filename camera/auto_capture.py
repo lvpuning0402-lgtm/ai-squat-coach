@@ -6,6 +6,8 @@ class AutoCapture:
     def __init__(self, hold_seconds=5.0):
         self.hold_seconds = hold_seconds
         self.captured = set()
+        self.failed = set()
+        self.last_trigger = None
         self.reset_hold()
 
     def reset_hold(self):
@@ -15,12 +17,18 @@ class AutoCapture:
 
     def rearm(self):
         self.captured.clear()
+        self.failed.clear()
+        self.last_trigger = None
         self.reset_hold()
+
+    def save_failed(self, view):
+        self.failed.add(view)
 
     def update(self, now, view, raw_view, framing_status, landmarks):
         if view in self.captured:
             self.reset_hold()
-            return False, 'AUTO PHOTO: saved for this view'
+            return False, ('PHOTO SAVE FAILED - press C to retry' if view in self.failed
+                           else 'AUTO PHOTO: saved for this view')
         if view not in ('FRONT', 'SIDE') or raw_view != view or framing_status != 'VISIBLE':
             self.reset_hold()
             return False, 'AUTO PHOTO: waiting for clear view'
@@ -44,6 +52,8 @@ class AutoCapture:
         remaining = self.hold_seconds - (now - self.started)
         if remaining > 0:
             return False, f'AUTO PHOTO: hold still {math.ceil(remaining)}s'
+        self.last_trigger = {"view": view, "required_seconds": self.hold_seconds,
+                             "stable_seconds": round(now - self.started, 3)}
         self.captured.add(view)
         self.reset_hold()
         return True, 'AUTO PHOTO: capturing'
