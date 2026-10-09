@@ -2,8 +2,8 @@
 import cv2
 
 
-def text_colors(frame, text, x, y, scale, thickness=1):
-    """Sample the visible text area before drawing; return ink and outline."""
+def text_color(frame, text, x, y, scale, thickness=1):
+    """Sample the visible text area before drawing; return one foreground color."""
     (width, height), baseline = cv2.getTextSize(
         text, cv2.FONT_HERSHEY_SIMPLEX, scale, thickness)
     rows, cols = frame.shape[:2]
@@ -13,19 +13,14 @@ def text_colors(frame, text, x, y, scale, thickness=1):
     if left < right and top < bottom:
         region = frame[top:bottom, left:right]
         brightness = cv2.mean(cv2.cvtColor(region, cv2.COLOR_BGR2GRAY))[0]
-    ink = (20, 20, 20) if brightness >= 145 else (245, 245, 245)
-    outline = (245, 245, 245) if brightness >= 145 else (20, 20, 20)
-    return ink, outline
+    return (0, 0, 0) if brightness >= 145 else (255, 255, 255)
 
 
 def draw_adaptive_text(frame, text, x, y, scale=.47, thickness=1):
     text = str(text)
     if not text:
         return
-    ink, outline = text_colors(frame, text, x, y, scale, thickness)
-    # The opposite outline keeps strokes readable across mixed/patterned areas.
-    cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX,
-                scale, outline, thickness + 2, cv2.LINE_AA)
+    ink = text_color(frame, text, x, y, scale, thickness)
     cv2.putText(frame, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX,
                 scale, ink, thickness, cv2.LINE_AA)
 
