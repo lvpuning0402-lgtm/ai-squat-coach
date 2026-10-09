@@ -301,3 +301,6 @@ python -m reports.open_latest --folder
 
 一次性验证：更新后自然站立等待自动截图，按 Q 结束，在总结页按 H / F 验证
 快捷入口，检查 reports 中的新 JSON、CSV、HTML、PNG。无需重复做深蹲。
+
+摄像头布局：底部预留 120 像素，分别显示保存结果、自动截图状态、深度采集提示和快捷键。
+SIMPLE / DETAIL / DEBUG 面板均限制在提示区上方；空间不足时收起多余行，完整数据查看训练报告。

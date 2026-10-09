@@ -1195,7 +1195,21 @@ def draw_interface(
 
     margin = 16
     gap = 14
-    footer_space = 32
+    footer_space = 120
+
+    def draw_live_panel(frame, title, lines, x, y, panel_width,
+                        line_height=23, title_height=29):
+        # Every panel stays above the four dedicated footer rows.
+        y = max(margin, y)
+        available = height - footer_space - y
+        capacity = max(0, int((available - title_height - 16) // line_height))
+        if capacity < 1:
+            return 0
+        visible = list(lines)
+        if len(visible) > capacity:
+            visible = visible[:capacity - 1] + ["More details in session report"]
+        return draw_panel(frame, title, visible, x, y, panel_width,
+                          line_height=line_height, title_height=title_height)
 
     # 统一卡片宽度，确保左右两列不会重叠。
     column_width = max(
@@ -1235,7 +1249,7 @@ def draw_interface(
             width - margin * 2
         )
 
-        draw_panel(
+        draw_live_panel(
             frame,
             "AI SPORT COACH",
             simple_status,
@@ -1269,7 +1283,7 @@ def draw_interface(
                 + 23 * len(last_lines)
             )
 
-            draw_panel(
+            draw_live_panel(
                 frame,
                 "LAST REP",
                 last_lines,
@@ -1288,7 +1302,7 @@ def draw_interface(
         f"{position}"
     ] + detail_live_lines
 
-    live_height = draw_panel(
+    live_height = draw_live_panel(
         frame,
         "LIVE",
         live_lines,
@@ -1298,7 +1312,7 @@ def draw_interface(
         line_height=21
     )
 
-    form_height = draw_panel(
+    form_height = draw_live_panel(
         frame,
         "FORM",
         detail_form_lines,
@@ -1478,14 +1492,13 @@ def draw_interface(
                 + 23 * len(set_lines)
             )
 
-            draw_panel(
+            draw_live_panel(
                 frame,
                 "SET SUMMARY",
                 set_lines,
                 left_x,
-                height
-                - footer_space
-                - set_height,
+                max(top_y + live_height + gap,
+                    height - footer_space - set_height),
                 column_width,
                 line_height=23
             )
@@ -1497,14 +1510,13 @@ def draw_interface(
                 + 23 * len(last_lines)
             )
 
-            draw_panel(
+            draw_live_panel(
                 frame,
                 "LAST REP",
                 last_lines,
                 right_x,
-                height
-                - footer_space
-                - last_height,
+                max(top_y + form_height + gap,
+                    height - footer_space - last_height),
                 column_width,
                 line_height=23
             )
@@ -1525,7 +1537,7 @@ def draw_interface(
 
     debug_height = (
         29
-        + 14
+        + 16
         + 18 * len(debug_lines_to_draw)
     )
 
@@ -1546,7 +1558,7 @@ def draw_interface(
         debug_y
     )
 
-    draw_panel(
+    draw_live_panel(
         frame,
         "DEBUG DATA",
         debug_lines_to_draw,
@@ -1569,12 +1581,10 @@ def draw_interface(
             + 21 * len(last_lines)
         )
 
-        last_y = (
-            right_bottom
-            - last_height
-        )
+        last_y = max(top_y + form_height + gap,
+                     right_bottom - last_height)
 
-        draw_panel(
+        draw_live_panel(
             frame,
             "LAST REP",
             last_lines,
@@ -1608,7 +1618,7 @@ def draw_interface(
         )
 
         if set_y >= min_set_y:
-            draw_panel(
+            draw_live_panel(
                 frame,
                 "SET SUMMARY",
                 set_lines,
@@ -2739,7 +2749,7 @@ def run_camera():
             take_photo, photo_message = auto_capture.update(
                 photo_now, view, raw_view, framing["status"], capture_landmarks
             )
-            draw_status_banner(frame, photo_message, bottom=60)
+            draw_status_banner(frame, photo_message, bottom=64)
             if take_photo:
                 photo_dir = Path("reports") / "auto_captures"
                 photo_name = f"session_{session_id}_{view}_{datetime.now():%Y%m%d_%H%M%S_%f}.png"
@@ -2760,7 +2770,7 @@ def run_camera():
                     print(f"AUTO SCREENSHOT FAILED | {exc}")
                 auto_photo_notice_until = photo_now + 5.0
             if auto_photo_notice and photo_now < auto_photo_notice_until:
-                draw_status_banner(frame, auto_photo_notice, bottom=96)
+                draw_status_banner(frame, auto_photo_notice, bottom=92)
 
             cv2.imshow(
                 window_name,
